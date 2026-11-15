@@ -101,11 +101,25 @@ public class DataInitializer implements CommandLineRunner {
             }
         }
 
-        // 3. Sembrar clientes iniciales de prueba
-        if (clienteRepository.count() == 0) {
-            clienteRepository.save(new Cliente(null, "1723456789", "Grecco", "Cedeño", "0991234567", "grecco@ejemplo.com"));
-            clienteRepository.save(new Cliente(null, "1314567890", "Britany Tahis", "Macias", "0987654321", "britany@ejemplo.com"));
-            clienteRepository.save(new Cliente(null, "1719876543", "Mateo", "Andrade", "0998877665", "mateo.andrade@ejemplo.com"));
+        // 3. Sembrar catálogo de 11 clientes iniciales de forma idempotente (3 originales + 8 adicionales)
+        List<Cliente> clientesIniciales = List.of(
+                new Cliente(null, "1723456789", "Grecco", "Cedeño", "0991234567", "grecco@ejemplo.com"),
+                new Cliente(null, "1314567890", "Britany Tahis", "Macias", "0987654321", "britany@ejemplo.com"),
+                new Cliente(null, "1719876543", "Mateo", "Andrade", "0998877665", "mateo.andrade@ejemplo.com"),
+                new Cliente(null, "1720112233", "Valeria", "Domínguez", "0992345678", "valeria.dominguez@ejemplo.com"),
+                new Cliente(null, "0923456781", "Santiago", "Villavicencio", "0983456789", "santiago.v@ejemplo.com"),
+                new Cliente(null, "1715566778", "Camila", "Espinoza", "0994567890", "camila.espinoza@ejemplo.com"),
+                new Cliente(null, "1804455667", "Andrés", "Peñaherrera", "0985678901", "andres.pena@ejemplo.com"),
+                new Cliente(null, "1726677889", "Daniela", "Montalvo", "0996789012", "daniela.montalvo@ejemplo.com"),
+                new Cliente(null, "0105566779", "Fernando", "Crespo", "0987890123", "fernando.crespo@ejemplo.com"),
+                new Cliente(null, "1718899001", "Gabriela", "Zambrano", "0998901234", "gabriela.zambrano@ejemplo.com"),
+                new Cliente(null, "1309988776", "Ricardo", "Alcívar", "0989012345", "ricardo.alcivar@ejemplo.com")
+        );
+
+        for (Cliente c : clientesIniciales) {
+            if (clienteRepository.findByIdentificacion(c.getIdentificacion()).isEmpty()) {
+                clienteRepository.save(c);
+            }
         }
 
         // 4. Limpiar cualquier visita PENDIENTE duplicada existente para un mismo (cliente, propiedad)

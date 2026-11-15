@@ -101,8 +101,16 @@ INSERT INTO propiedades (codigo_interno, direccion, tipo, modalidad, descripcion
 ('P-09', 'Av. De los Granados E14-90 y El Inca', 'Casa', 'ALQUILER', 'Casa remodelada de 3 dormitorios dentro de urbanización cerrada, cerca de centros educativos y comerciales.', 'DISPONIBLE'),
 ('P-10', 'Av. Mariana de Jesús OE7-40 y Pradera', 'Departamento', 'VENTA', 'Departamento iluminado de 3 habitaciones en 5to piso con ascensor, área de lavado y guardianía permanente.', 'RESERVADA');
 
--- Clientes iniciales
+-- Clientes iniciales (11 clientes completos)
 INSERT INTO clientes (identificacion, nombre, apellido, telefono, correo) VALUES
 ('1723456789', 'Grecco', 'Cedeño', '0991234567', 'grecco@ejemplo.com'),
 ('1314567890', 'Britany Tahis', 'Macias', '0987654321', 'britany@ejemplo.com'),
-('1719876543', 'Mateo', 'Andrade', '0998877665', 'mateo.andrade@ejemplo.com');
+('1719876543', 'Mateo', 'Andrade', '0998877665', 'mateo.andrade@ejemplo.com'),
+('1720112233', 'Valeria', 'Domínguez', '0992345678', 'valeria.dominguez@ejemplo.com'),
+('0923456781', 'Santiago', 'Villavicencio', '0983456789', 'santiago.v@ejemplo.com'),
+('1715566778', 'Camila', 'Espinoza', '0994567890', 'camila.espinoza@ejemplo.com'),
+('1804455667', 'Andrés', 'Peñaherrera', '0985678901', 'andres.pena@ejemplo.com'),
+('1726677889', 'Daniela', 'Montalvo', '0996789012', 'daniela.montalvo@ejemplo.com'),
+('0105566779', 'Fernando', 'Crespo', '0987890123', 'fernando.crespo@ejemplo.com'),
+('1718899001', 'Gabriela', 'Zambrano', '0998901234', 'gabriela.zambrano@ejemplo.com'),
+('1309988776', 'Ricardo', 'Alcívar', '0989012345', 'ricardo.alcivar@ejemplo.com');
