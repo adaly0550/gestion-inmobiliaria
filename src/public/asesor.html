@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Asesor - Gestión Inmobiliaria</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <h1>Sistema de Inmobiliaria</h1>
+    <div class="user-info">
+      <span id="nombre-usuario">Cargando...</span>
+      <span id="rol-usuario" class="badge-rol">ASESOR</span>
+      <button class="btn btn-secondary btn-small" onclick="cerrarSesion()">Cerrar Sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="alerta-global" class="alert"></div>
+
+    <!-- Pestañas de navegación del Asesor -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="cambiarPestana('tab-propiedades', this)">Propiedades Disponibles</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-clientes', this)">Clientes</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-visitas', this)">Mis Visitas</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-avisos', this)">
+        Mis Avisos (<span id="contador-avisos">0</span>)
+      </button>
+    </div>
+
+    <!-- PESTAÑA 1: PROPIEDADES DISPONIBLES (Solo lectura para Asesor) -->
+    <section id="tab-propiedades" class="tab-content active">
+      <h3>Propiedades Disponibles para Visitas (RN-01)</h3>
+      <p class="rule-note">Solo las propiedades en estado DISPONIBLE pueden recibir visitas agendadas.</p>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Código</th>
+              <th>Dirección</th>
+              <th>Tipo</th>
+              <th>Modalidad</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-propiedades"></tbody>
+        </table>
+      </div>
+      <div id="pag-propiedades" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 2: CLIENTES -->
+    <section id="tab-clientes" class="tab-content">
+      <div class="form-card">
+        <h3>Nuevo Cliente</h3>
+        <form onsubmit="registrarCliente(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Identificación *</label>
+              <input type="text" id="cli-identificacion" placeholder="Cédula o RUC" required>
+            </div>
+            <div class="form-group">
+              <label>Nombre *</label>
+              <input type="text" id="cli-nombre" placeholder="Nombre" required>
+            </div>
+            <div class="form-group">
+              <label>Apellido</label>
+              <input type="text" id="cli-apellido" placeholder="Apellido">
+            </div>
+            <div class="form-group">
+              <label>Teléfono *</label>
+              <input type="text" id="cli-telefono" placeholder="099..." required>
+            </div>
+            <div class="form-group">
+              <label>Correo (Opcional)</label>
+              <input type="email" id="cli-correo" placeholder="correo@ejemplo.com">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Guardar Cliente</button>
+        </form>
+        <p class="rule-note"><strong>Regla RN-05:</strong> Identificación, nombre y teléfono son obligatorios.</p>
+      </div>
+
+      <h3>Clientes Registrados</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Identificación</th>
+              <th>Nombre</th>
+              <th>Apellido</th>
+              <th>Teléfono</th>
+              <th>Correo</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-clientes"></tbody>
+        </table>
+      </div>
+      <div id="pag-clientes" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 3: MIS VISITAS (RN-07) -->
+    <section id="tab-visitas" class="tab-content">
+      <div class="form-card">
+        <h3>Agendar Nueva Visita (Duración automática: 60 minutos)</h3>
+        <form onsubmit="agendarVisita(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Cliente</label>
+              <select id="visita-cliente" required></select>
+            </div>
+            <div class="form-group">
+              <label>Propiedad Disponible (RN-01)</label>
+              <select id="visita-propiedad" required></select>
+            </div>
+            <div class="form-group">
+              <label>Fecha</label>
+              <input type="date" id="visita-fecha" required>
+            </div>
+            <div class="form-group">
+              <label>Hora Inicio (RN-04)</label>
+              <input type="time" id="visita-hora" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Agendar Visita</button>
+        </form>
+        <p class="rule-note">
+          <strong>Reglas:</strong> No se permiten cruces de horario en la misma fecha (RN-04). Cada visita dura 60 minutos exactos.<br>
+          <strong>Horario de atención:</strong> Lunes a Viernes de 09:00 a 18:00 (última cita 17:00) | Sábados de 09:00 a 13:00 (última cita 12:00) | Domingos cerrado.
+        </p>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h3 style="margin:0;">Mis Visitas Programadas (RN-07)</h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label style="font-size:13px;">Filtrar por fecha:</label>
+          <input type="date" id="filtro-fecha-visita" style="width:auto;" onchange="filtrarVisitas()">
+          <button class="btn btn-secondary btn-small" onclick="document.getElementById('filtro-fecha-visita').value=''; filtrarVisitas();">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Cliente</th>
+              <th>Propiedad</th>
+              <th>Asesor</th>
+              <th>Fecha</th>
+              <th>Horario</th>
+              <th>Estado (RNF-03)</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-visitas"></tbody>
+        </table>
+      </div>
+      <div id="pag-visitas" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 4: MIS AVISOS INTERNOS (RN-10) -->
+    <section id="tab-avisos" class="tab-content">
+      <h3>Mis Avisos Internos (RN-10)</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Asesor</th>
+              <th>Mensaje</th>
+              <th>Fecha y Hora</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-avisos"></tbody>
+        </table>
+      </div>
+      <div id="pag-avisos" class="pagination"></div>
+    </section>
+  </main>
+
+  <script src="panel.js"></script>
+  <script>
+    iniciarPanel('ASESOR');
+  </script>
+</body>
+</html>
