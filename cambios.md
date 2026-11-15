@@ -42,9 +42,10 @@ Este documento detalla la revisión técnica realizada sobre el proyecto **Gesti
 
 ---
 
-## 4. Configuración de Git (`.gitignore`)
+## 4. Configuración de Git (`.gitignore`) y Adaptación para IntelliJ IDEA
 
-- Se agregó el archivo `.gitignore` para excluir `node_modules/` y `.env` del repositorio en GitHub, subiendo únicamente el código fuente y archivos necesarios del proyecto.
+- Se agregó el archivo `.gitignore` para excluir `node_modules/`, `.env` y `out/` del repositorio en GitHub.
+- Se agregaron los archivos de configuración del entorno **IntelliJ IDEA** (`.idea/`, `gestion-inmobiliaria.iml` y `src/IniciarServidor.java`) además de una copia lista en `gestion-inmobiliaria-intellij/` para poder abrir y ejecutar el proyecto directamente desde **IntelliJ IDEA (Community o Ultimate)** usando el botón verde **Run (▶)** sin alterar ninguna regla ni archivo de negocio.
 
 ---
 
