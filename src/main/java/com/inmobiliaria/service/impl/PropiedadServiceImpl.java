@@ -37,12 +37,17 @@ public class PropiedadServiceImpl implements PropiedadService {
         validarRol(usuarioSesion);
         validarDatos(propiedad);
 
-        String codigoLimpio = propiedad.getCodigoInterno().trim();
-        if (propiedadRepository.findByCodigoInterno(codigoLimpio).isPresent()) {
-            throw new AppException("Ya existe una propiedad con el código interno " + codigoLimpio + ".", 400);
+        String codigoFinal;
+        if (propiedad.getCodigoInterno() != null && !propiedad.getCodigoInterno().isBlank()) {
+            codigoFinal = propiedad.getCodigoInterno().trim();
+            if (propiedadRepository.findByCodigoInterno(codigoFinal).isPresent()) {
+                throw new AppException("Ya existe una propiedad con el código interno " + codigoFinal + ".", 400);
+            }
+        } else {
+            codigoFinal = generarSiguienteCodigoInterno();
         }
 
-        propiedad.setCodigoInterno(codigoLimpio);
+        propiedad.setCodigoInterno(codigoFinal);
         propiedad.setDireccion(propiedad.getDireccion().trim());
         propiedad.setTipo(propiedad.getTipo().trim());
         propiedad.setDescripcion(propiedad.getDescripcion() != null ? propiedad.getDescripcion().trim() : null);
@@ -51,6 +56,30 @@ public class PropiedadServiceImpl implements PropiedadService {
         }
 
         return propiedadRepository.save(propiedad);
+    }
+
+    // Genera automáticamente el siguiente código interno correlativo (ej. P-01, P-02, P-03...)
+    private String generarSiguienteCodigoInterno() {
+        List<Propiedad> existentes = propiedadRepository.findAll();
+        int maxNumero = 0;
+        for (Propiedad p : existentes) {
+            if (p.getCodigoInterno() != null && p.getCodigoInterno().matches("(?i)^P-\\d+$")) {
+                try {
+                    int num = Integer.parseInt(p.getCodigoInterno().substring(2));
+                    if (num > maxNumero) {
+                        maxNumero = num;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        int siguiente = maxNumero + 1;
+        String candidato = String.format("P-%02d", siguiente);
+        while (propiedadRepository.findByCodigoInterno(candidato).isPresent()) {
+            siguiente++;
+            candidato = String.format("P-%02d", siguiente);
+        }
+        return candidato;
     }
 
     @Override
@@ -104,11 +133,10 @@ public class PropiedadServiceImpl implements PropiedadService {
     // Método privado del diagrama de PropiedadServiceImpl (RN-05 y Punto 13)
     private void validarDatos(Propiedad p) {
         if (p == null
-                || p.getCodigoInterno() == null || p.getCodigoInterno().isBlank()
                 || p.getDireccion() == null || p.getDireccion().isBlank()
                 || p.getTipo() == null || p.getTipo().isBlank()
                 || p.getModalidad() == null) {
-            throw new AppException("RN-05: Todos los datos básicos son obligatorios (codigoInterno, direccion, tipo, modalidad).", 400);
+            throw new AppException("RN-05: Todos los datos básicos son obligatorios (direccion, tipo, modalidad).", 400);
         }
 
         String tipoTrim = p.getTipo().trim();

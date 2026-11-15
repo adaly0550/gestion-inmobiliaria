@@ -195,9 +195,25 @@ async function cargarPropiedades() {
     cachePropiedades = await apiFetch(endpoint);
     renderPropiedades();
     actualizarSelectPropiedades();
+    actualizarProximoCodigoPropiedad();
   } catch (err) {
     mostrarAlerta(err.message, 'error');
   }
+}
+
+function actualizarProximoCodigoPropiedad() {
+  const inputCodigo = document.getElementById('prop-codigo');
+  if (!inputCodigo) return;
+  let maxNum = 0;
+  cachePropiedades.forEach((p) => {
+    const m = /^P-(\d+)$/i.exec(p.codigoInterno || '');
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  });
+  const siguiente = String(maxNum + 1).padStart(2, '0');
+  inputCodigo.value = `P-${siguiente} (Automático)`;
 }
 
 function renderPropiedades() {
@@ -243,15 +259,14 @@ window.registrarPropiedad = async (e) => {
   e.preventDefault();
   try {
     const body = {
-      codigoInterno: document.getElementById('prop-codigo').value.trim(),
       direccion: document.getElementById('prop-direccion').value.trim(),
       tipo: document.getElementById('prop-tipo').value.trim(),
       modalidad: document.getElementById('prop-modalidad').value,
       descripcion: document.getElementById('prop-descripcion')?.value.trim() || null
     };
-    await apiFetch('/api/propiedades', { method: 'POST', body: JSON.stringify(body) });
+    const creada = await apiFetch('/api/propiedades', { method: 'POST', body: JSON.stringify(body) });
     e.target.reset();
-    mostrarAlerta('Propiedad registrada correctamente.');
+    mostrarAlerta(`Propiedad registrada correctamente con código automático ${creada.codigoInterno}.`);
     await cargarPropiedades();
   } catch (err) {
     mostrarAlerta(err.message, 'error');
