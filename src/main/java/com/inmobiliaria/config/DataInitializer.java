@@ -1,18 +1,25 @@
 package com.inmobiliaria.config;
 
 import com.inmobiliaria.constants.EstadoPropiedad;
+import com.inmobiliaria.constants.EstadoVisita;
 import com.inmobiliaria.constants.Modalidad;
 import com.inmobiliaria.constants.Rol;
 import com.inmobiliaria.model.Cliente;
 import com.inmobiliaria.model.Propiedad;
 import com.inmobiliaria.model.Usuario;
+import com.inmobiliaria.model.Visita;
 import com.inmobiliaria.repository.ClienteRepository;
 import com.inmobiliaria.repository.PropiedadRepository;
 import com.inmobiliaria.repository.UsuarioRepository;
+import com.inmobiliaria.repository.VisitaRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 /**
  * Inicializador de datos semilla con contraseñas cifradas en BCrypt (Punto 9).
@@ -24,15 +31,18 @@ public class DataInitializer implements CommandLineRunner {
     private final UsuarioRepository usuarioRepository;
     private final PropiedadRepository propiedadRepository;
     private final ClienteRepository clienteRepository;
+    private final VisitaRepository visitaRepository;
     private final PasswordEncoder passwordEncoder;
 
     public DataInitializer(UsuarioRepository usuarioRepository,
                            PropiedadRepository propiedadRepository,
                            ClienteRepository clienteRepository,
+                           VisitaRepository visitaRepository,
                            PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
         this.propiedadRepository = propiedadRepository;
         this.clienteRepository = clienteRepository;
+        this.visitaRepository = visitaRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -86,6 +96,49 @@ public class DataInitializer implements CommandLineRunner {
                     "0991234567",
                     "grecco@ejemplo.com"
             ));
+        }
+
+        // 4. Asegurar que cada asesor de prueba tenga al menos una visita PENDIENTE futura para probar reprogramación/cancelación
+        Cliente cliente = clienteRepository.findAll().stream().findFirst().orElse(null);
+        Propiedad prop1 = propiedadRepository.findByCodigoInterno("P-01").orElse(null);
+        Propiedad prop2 = propiedadRepository.findByCodigoInterno("P-02").orElse(null);
+        Usuario carlos = usuarioRepository.findByUsuario("carlos").orElse(null);
+        Usuario laura = usuarioRepository.findByUsuario("laura").orElse(null);
+
+        LocalDate proximoDiaHabil = LocalDate.now().plusDays(1);
+        while (proximoDiaHabil.getDayOfWeek() == DayOfWeek.SATURDAY || proximoDiaHabil.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            proximoDiaHabil = proximoDiaHabil.plusDays(1);
+        }
+
+        if (cliente != null && prop1 != null && carlos != null) {
+            boolean carlosTienePendiente = visitaRepository.findByEstadoOrderByFechaAscHoraInicioAsc(EstadoVisita.PENDIENTE)
+                    .stream().anyMatch(v -> carlos.getId().equals(v.getIdUsuario()));
+            if (!carlosTienePendiente && prop1.getEstado() == EstadoPropiedad.DISPONIBLE) {
+                visitaRepository.save(new Visita(
+                        cliente,
+                        prop1,
+                        carlos,
+                        proximoDiaHabil,
+                        LocalTime.of(10, 0),
+                        LocalTime.of(11, 0),
+                        EstadoVisita.PENDIENTE
+                ));
+            }
+        }
+        if (cliente != null && prop2 != null && laura != null) {
+            boolean lauraTienePendiente = visitaRepository.findByEstadoOrderByFechaAscHoraInicioAsc(EstadoVisita.PENDIENTE)
+                    .stream().anyMatch(v -> laura.getId().equals(v.getIdUsuario()));
+            if (!lauraTienePendiente && prop2.getEstado() == EstadoPropiedad.DISPONIBLE) {
+                visitaRepository.save(new Visita(
+                        cliente,
+                        prop2,
+                        laura,
+                        proximoDiaHabil,
+                        LocalTime.of(11, 0),
+                        LocalTime.of(12, 0),
+                        EstadoVisita.PENDIENTE
+                ));
+            }
         }
     }
 }

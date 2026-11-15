@@ -34,16 +34,8 @@ function escapeHtml(valor) {
 // 1. Verificar sesión real contra el servidor (Punto 8 / RNF-01 / RNF-02)
 window.iniciarPanel = async (rolPermitido) => {
   try {
-    const sesionLocal = JSON.parse(localStorage.getItem('usuarioSesion') || '{}');
-    const sesionServidor = await apiFetch('/api/auth/me');
-
-    // Si en el navegador había otra sesión guardada distinta a la cookie o rol diferente,
-    // sincronizamos automáticamente si tenemos credenciales locales o redirigimos sin mostrar errores falsos
-    if (sesionLocal && sesionLocal.id && Number(sesionLocal.id) !== Number(sesionServidor.id)) {
-      localStorage.setItem('usuarioSesion', JSON.stringify(sesionServidor));
-    }
-    usuarioSesion = sesionServidor;
-    localStorage.setItem('usuarioSesion', JSON.stringify(sesionServidor));
+    usuarioSesion = await apiFetch('/api/auth/me');
+    localStorage.setItem('usuarioSesion', JSON.stringify(usuarioSesion));
   } catch (_) {
     localStorage.removeItem('usuarioSesion');
     window.location.href = '/index.html';
@@ -59,6 +51,23 @@ window.iniciarPanel = async (rolPermitido) => {
   const badge = document.getElementById('rol-usuario');
   badge.textContent = usuarioSesion.rol;
   if (usuarioSesion.rol === 'ADMINISTRADOR') badge.classList.add('admin');
+
+  // Si otra pestaña cambia la sesión activa en el navegador, sincronizar al volver a enfocar la ventana
+  window.addEventListener('focus', async () => {
+    try {
+      const actual = await fetch('/api/auth/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null));
+      if (actual && actual.rol !== rolPermitido) {
+        window.location.href = actual.rol === 'ADMINISTRADOR' ? '/admin.html' : '/asesor.html';
+      } else if (actual && Number(actual.id) !== Number(usuarioSesion.id)) {
+        usuarioSesion = actual;
+        localStorage.setItem('usuarioSesion', JSON.stringify(actual));
+        document.getElementById('nombre-usuario').textContent = usuarioSesion.nombres;
+        await cargarTodo();
+      }
+    } catch (_) {
+      // Ignorar si no hay conexión momentánea
+    }
+  });
 
   await cargarTodo();
 };
@@ -82,11 +91,10 @@ window.cambiarPestana = (idPestana, boton) => {
   if (boton) boton.classList.add('active');
 };
 
-// 3. Helper de peticiones HTTP con cookie de sesión y sincronización de usuario activo
+// 3. Helper de peticiones HTTP con cookie de sesión (Punto 8: sin cabecera x-usuario-id)
 async function apiFetch(url, opciones = {}) {
   const headers = {
     'Content-Type': 'application/json',
-    ...(usuarioSesion && usuarioSesion.id ? { 'x-usuario-id': String(usuarioSesion.id) } : {}),
     ...(opciones.headers || {})
   };
   const respuesta = await fetch(url, {
@@ -99,6 +107,15 @@ async function apiFetch(url, opciones = {}) {
     if (respuesta.status === 401 && !url.includes('/api/auth/')) {
       localStorage.removeItem('usuarioSesion');
       window.location.href = '/index.html';
+      return data;
+    }
+    if (respuesta.status === 403 && !url.includes('/api/auth/')) {
+      // Verificar si la sesión cambió de rol en otra pestaña para redirigir sin mostrar alerta falsa
+      const me = await fetch('/api/auth/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (me && me.rol !== usuarioSesion.rol) {
+        window.location.href = me.rol === 'ADMINISTRADOR' ? '/admin.html' : '/asesor.html';
+        return data;
+      }
     }
     throw new Error(data.error || data.mensaje || 'Error en la petición');
   }
@@ -520,6 +537,8 @@ function renderVisitas() {
   const items = paginar(cacheVisitas, 'visitas');
   tbody.innerHTML = '';
 
+  actualizarSelectReprogramar();
+
   if (items.length === 0) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No hay visitas registradas para el filtro actual.</td></tr>';
     return;
@@ -592,37 +611,78 @@ window.agendarVisita = async (e) => {
   }
 };
 
+function actualizarSelectReprogramar() {
+  const select = document.getElementById('rep-id-visita');
+  if (!select || select.tagName !== 'SELECT') return;
+
+  const valorPrevio = select.value;
+  const pendientes = cacheVisitas.filter((v) => v.estado === 'PENDIENTE');
+
+  select.innerHTML = '<option value="">-- Seleccione una visita pendiente --</option>';
+  pendientes.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = `Visita #${v.id} | ${v.propiedadCodigo || 'Prop #' + v.idPropiedad} | Cliente: ${v.clienteNombre || '#' + v.idCliente} | ${v.fecha} (${v.horaInicio} - ${v.horaFin})`;
+    select.appendChild(opt);
+  });
+
+  if (valorPrevio && pendientes.some((v) => String(v.id) === String(valorPrevio))) {
+    select.value = valorPrevio;
+  } else if (pendientes.length > 0) {
+    select.value = String(pendientes[0].id);
+    seleccionarVisitaParaReprogramar(pendientes[0].id);
+  } else {
+    const info = document.getElementById('rep-info-actual');
+    if (info) {
+      info.textContent = 'No tienes visitas en estado PENDIENTE actualmente. Agenda una nueva visita arriba para poder reprogramarla.';
+    }
+  }
+}
+
+window.seleccionarVisitaParaReprogramar = async (idVisita) => {
+  const info = document.getElementById('rep-info-actual');
+  const visitaObj = cacheVisitas.find((v) => Number(v.id) === Number(idVisita));
+  if (!visitaObj) {
+    if (info) info.textContent = 'Selecciona una visita pendiente para reprogramar.';
+    return;
+  }
+
+  document.getElementById('rep-id-propiedad').value = visitaObj.idPropiedad || '';
+  document.getElementById('rep-id-cliente').value = visitaObj.idCliente || '';
+  document.getElementById('rep-id-asesor').value = visitaObj.idUsuario || '';
+  document.getElementById('rep-fecha').value = visitaObj.fecha || '';
+  document.getElementById('rep-hora').value = visitaObj.horaInicio || '10:00';
+
+  if (info) {
+    info.textContent = `Reprogramando Visita #${visitaObj.id} — Cliente: ${visitaObj.clienteNombre || '#' + visitaObj.idCliente} | Propiedad: ${visitaObj.propiedadCodigo || '#' + visitaObj.idPropiedad} | Horario actual: ${visitaObj.fecha} (${visitaObj.horaInicio} - ${visitaObj.horaFin})`;
+  }
+
+  await actualizarHorariosReprogramacion();
+};
+
 // Punto 1 / HU-06 / RF-08: Abrir formulario visual de reprogramación con sugerencia de horarios libres
 window.reprogramarVisita = async (idVisita, fechaActual, horaActual) => {
   const card = document.getElementById('card-reprogramar');
-  const visitaObj = cacheVisitas.find((v) => Number(v.id) === Number(idVisita));
+  const select = document.getElementById('rep-id-visita');
+
+  if (select) {
+    select.value = String(idVisita);
+  }
+  await seleccionarVisitaParaReprogramar(idVisita);
+
+  if (fechaActual) document.getElementById('rep-fecha').value = fechaActual;
+  if (horaActual) document.getElementById('rep-hora').value = horaActual;
+  document.getElementById('rep-motivo').value = '';
 
   if (card) {
-    document.getElementById('rep-id-visita').value = idVisita;
-    document.getElementById('rep-id-texto').textContent = idVisita;
-    document.getElementById('rep-id-propiedad').value = visitaObj?.idPropiedad || '';
-    document.getElementById('rep-id-cliente').value = visitaObj?.idCliente || '';
-    document.getElementById('rep-id-asesor').value = visitaObj?.idUsuario || '';
-    document.getElementById('rep-fecha').value = fechaActual || '';
-    document.getElementById('rep-hora').value = horaActual || '10:00';
-    document.getElementById('rep-motivo').value = '';
-
-    const info = document.getElementById('rep-info-actual');
-    if (info && visitaObj) {
-      info.textContent = `Cliente: ${visitaObj.clienteNombre || '#' + visitaObj.idCliente} | Propiedad: ${visitaObj.propiedadCodigo || '#' + visitaObj.idPropiedad} | Horario actual: ${visitaObj.fecha} (${visitaObj.horaInicio} - ${visitaObj.horaFin})`;
-    }
-
-    card.style.display = 'block';
-    await actualizarHorariosReprogramacion();
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     document.getElementById('rep-motivo').focus();
-    return;
   }
 };
 
 window.cerrarFormularioReprogramar = () => {
-  const card = document.getElementById('card-reprogramar');
-  if (card) card.style.display = 'none';
+  const motivoInput = document.getElementById('rep-motivo');
+  if (motivoInput) motivoInput.value = '';
 };
 
 window.actualizarHorariosReprogramacion = async () => {

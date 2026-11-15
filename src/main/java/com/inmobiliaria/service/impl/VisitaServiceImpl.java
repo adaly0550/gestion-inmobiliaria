@@ -386,16 +386,10 @@ public class VisitaServiceImpl implements VisitaService {
             throw new AppException("RN-04: El cliente ya tiene otra visita programada en ese horario (no puede estar en dos propiedades a la misma hora).", 400);
         }
 
-        // 3. Cruce o duplicado en la misma propiedad
+        // 3. Cruce en la misma propiedad
         List<Visita> visitasPropiedad = visitaRepository.findByPropiedadIdAndFecha(idPropiedad, fecha);
-        boolean mismaPropiedadMismoCliente = visitasPropiedad.stream()
-                .filter(v -> !Objects.equals(v.getId(), idVisitaIgnorada))
-                .anyMatch(v -> v.getEstado() != EstadoVisita.CANCELADA && Objects.equals(v.getIdCliente(), idCliente));
-        if (mismaPropiedadMismoCliente) {
-            throw new AppException("Este cliente ya tiene una visita pendiente en esta misma propiedad para esa fecha.", 400);
-        }
         if (seCruza(visitasPropiedad, horaInicio, horaFin, idVisitaIgnorada)) {
-            throw new AppException("La propiedad ya tiene otra visita programada que se cruza en ese horario.", 400);
+            throw new AppException("RN-04: La propiedad ya tiene otra visita programada que se cruza en ese horario.", 400);
         }
     }
 
@@ -494,8 +488,18 @@ public class VisitaServiceImpl implements VisitaService {
     }
 
     public static LocalTime parseHora(String horaStr) {
+        if (horaStr == null || horaStr.isBlank()) {
+            throw new AppException("Formato de hora inválido. Use HH:MM (ej. 10:00).", 400);
+        }
+        String limpia = horaStr.trim();
+        // Si el navegador envía segundos desde <input type="time"> (ej. "10:00:00"), recortar a HH:mm
+        if (limpia.matches("^\\d{2}:\\d{2}:\\d{2}$")) {
+            limpia = limpia.substring(0, 5);
+        } else if (limpia.matches("^\\d:\\d{2}(:\\d{2})?$")) {
+            limpia = "0" + limpia.substring(0, 4);
+        }
         try {
-            return LocalTime.parse(horaStr, HORA_FMT);
+            return LocalTime.parse(limpia, HORA_FMT);
         } catch (DateTimeParseException e) {
             throw new AppException("Formato de hora inválido. Use HH:MM (ej. 10:00).", 400);
         }

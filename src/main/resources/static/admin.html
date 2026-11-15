@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel Administrador - Gestión Inmobiliaria</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 
@@ -238,19 +238,25 @@
       </div>
       <div id="pag-visitas" class="pagination"></div>
 
-      <!-- FORMULARIO VISUAL DE REPROGRAMACIÓN (HU-06 / RF-08 / RN-08) -->
-      <div id="card-reprogramar" class="form-card" style="display:none; margin-top:20px; border-left: 4px solid #3498db;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h3 id="titulo-form-reprogramar" style="margin:0;">Reprogramar Visita #<span id="rep-id-texto"></span> (HU-06 / RF-08)</h3>
-          <button type="button" class="btn btn-secondary btn-small" onclick="cerrarFormularioReprogramar()">Cerrar</button>
+      <!-- FORMULARIO VISUAL DE REPROGRAMACIÓN (HU-06 / RF-08 / RN-08) SIEMPRE VISIBLE -->
+      <div id="card-reprogramar" class="form-card" style="margin-top:20px; border-left: 4px solid #3498db;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <h3 id="titulo-form-reprogramar" style="margin:0;">Reprogramar Cita / Visita Pendiente (HU-06 / RF-08 / RN-08)</h3>
         </div>
-        <p id="rep-info-actual" class="rule-note" style="margin-bottom:12px;"></p>
+        <p id="rep-info-actual" class="rule-note" style="margin-bottom:12px;">
+          Selecciona una visita pendiente en la lista o haz clic en el botón <strong>"Reprogramar"</strong> de la tabla.
+        </p>
         <form onsubmit="guardarReprogramacionFormulario(event)">
-          <input type="hidden" id="rep-id-visita">
           <input type="hidden" id="rep-id-propiedad">
           <input type="hidden" id="rep-id-cliente">
           <input type="hidden" id="rep-id-asesor">
           <div class="form-grid">
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label>Visita Pendiente a Reprogramar *</label>
+              <select id="rep-id-visita" required onchange="seleccionarVisitaParaReprogramar(this.value)">
+                <option value="">-- Seleccione una visita pendiente --</option>
+              </select>
+            </div>
             <div class="form-group">
               <label>Nueva Fecha *</label>
               <input type="date" id="rep-fecha" required onchange="actualizarHorariosReprogramacion()">
@@ -261,13 +267,12 @@
             </div>
             <div class="form-group" style="grid-column: 1 / -1;">
               <label>Motivo Obligatorio del Cambio (RN-08) *</label>
-              <input type="text" id="rep-motivo" placeholder="Ej. El cliente solicitó mover la cita media hora más tarde" required>
+              <input type="text" id="rep-motivo" placeholder="Ej. El cliente solicitó mover la cita a otro horario" required>
             </div>
           </div>
           <div id="rep-horarios-libres-box" class="rule-note" style="margin-top: 8px;"></div>
           <div style="margin-top: 12px; display:flex; gap:8px;">
             <button type="submit" class="btn btn-primary">Guardar Reprogramación</button>
-            <button type="button" class="btn btn-secondary" onclick="cerrarFormularioReprogramar()">Cancelar</button>
           </div>
         </form>
       </div>
@@ -324,7 +329,7 @@
     </section>
   </main>
 
-  <script src="panel.js"></script>
+  <script src="panel.js?v=3"></script>
   <script>
     iniciarPanel('ADMINISTRADOR');
   </script>

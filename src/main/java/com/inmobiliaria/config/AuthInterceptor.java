@@ -36,28 +36,11 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         HttpSession session = request.getSession(false);
-        Long usuarioId = (session != null && session.getAttribute(SESSION_USER_ID) != null)
-                ? (Long) session.getAttribute(SESSION_USER_ID)
-                : null;
-
-        // Sincronizar con la sesión activa de la pestaña si se envía x-usuario-id
-        String headerId = request.getHeader("x-usuario-id");
-        if (headerId != null && !headerId.isBlank()) {
-            try {
-                Long idPestana = Long.valueOf(headerId.trim());
-                if (usuarioId == null || !usuarioId.equals(idPestana)) {
-                    usuarioId = idPestana;
-                    HttpSession sesionActiva = request.getSession(true);
-                    sesionActiva.setAttribute(SESSION_USER_ID, usuarioId);
-                }
-            } catch (NumberFormatException ignored) {
-            }
-        }
-
-        if (usuarioId == null) {
+        if (session == null || session.getAttribute(SESSION_USER_ID) == null) {
             throw new AppException("No autorizado: Debe iniciar sesión para acceder al sistema.", 401);
         }
 
+        Long usuarioId = (Long) session.getAttribute(SESSION_USER_ID);
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new AppException("Usuario no encontrado.", 404));
 
