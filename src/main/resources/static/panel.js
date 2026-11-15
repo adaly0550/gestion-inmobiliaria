@@ -584,17 +584,85 @@ window.agendarVisita = async (e) => {
   }
 };
 
-// Punto 1 / HU-06 / RF-08: Reprogramar visita con nueva fecha, nueva hora y motivo obligatorio
+// Punto 1 / HU-06 / RF-08: Abrir formulario visual de reprogramación con sugerencia de horarios libres
 window.reprogramarVisita = async (idVisita, fechaActual, horaActual) => {
-  const nuevaFecha = prompt('HU-06: Ingresa la nueva fecha para la visita (YYYY-MM-DD):', fechaActual || '');
-  if (nuevaFecha === null) return;
+  const card = document.getElementById('card-reprogramar');
+  const visitaObj = cacheVisitas.find((v) => Number(v.id) === Number(idVisita));
 
-  const nuevaHora = prompt('HU-06: Ingresa la nueva hora de inicio (HH:MM, duración 60 min):', horaActual || '10:00');
-  if (nuevaHora === null) return;
+  if (card) {
+    document.getElementById('rep-id-visita').value = idVisita;
+    document.getElementById('rep-id-texto').textContent = idVisita;
+    document.getElementById('rep-id-propiedad').value = visitaObj?.idPropiedad || '';
+    document.getElementById('rep-id-cliente').value = visitaObj?.idCliente || '';
+    document.getElementById('rep-id-asesor').value = visitaObj?.idUsuario || '';
+    document.getElementById('rep-fecha').value = fechaActual || '';
+    document.getElementById('rep-hora').value = horaActual || '10:00';
+    document.getElementById('rep-motivo').value = '';
 
-  const motivo = prompt('RN-08: Ingresa el motivo obligatorio para reprogramar esta visita:');
-  if (motivo === null) return;
-  if (motivo.trim() === '') {
+    const info = document.getElementById('rep-info-actual');
+    if (info && visitaObj) {
+      info.textContent = `Cliente: ${visitaObj.clienteNombre || '#' + visitaObj.idCliente} | Propiedad: ${visitaObj.propiedadCodigo || '#' + visitaObj.idPropiedad} | Horario actual: ${visitaObj.fecha} (${visitaObj.horaInicio} - ${visitaObj.horaFin})`;
+    }
+
+    card.style.display = 'block';
+    await actualizarHorariosReprogramacion();
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('rep-motivo').focus();
+    return;
+  }
+};
+
+window.cerrarFormularioReprogramar = () => {
+  const card = document.getElementById('card-reprogramar');
+  if (card) card.style.display = 'none';
+};
+
+window.actualizarHorariosReprogramacion = async () => {
+  const box = document.getElementById('rep-horarios-libres-box');
+  const fecha = document.getElementById('rep-fecha')?.value;
+  if (!box || !fecha) {
+    if (box) box.textContent = '';
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({ fecha });
+    const prop = document.getElementById('rep-id-propiedad')?.value;
+    const cli = document.getElementById('rep-id-cliente')?.value;
+    const ase = document.getElementById('rep-id-asesor')?.value;
+    const idVisita = document.getElementById('rep-id-visita')?.value;
+
+    if (prop) params.set('propiedad', prop);
+    if (cli) params.set('cliente', cli);
+    if (ase) params.set('asesor', ase);
+    if (idVisita) params.set('visitaIgnorada', idVisita);
+
+    const libres = await apiFetch(`/api/visitas/horarios-libres?${params.toString()}`);
+    if (libres.length === 0) {
+      box.innerHTML = '<strong>Horarios disponibles (HU-05 / RN-04):</strong> No hay horarios libres en esta fecha.';
+    } else {
+      box.innerHTML =
+        '<strong>Horarios libres para reprogramar (clic para elegir):</strong> ' +
+        libres
+          .map(
+            (h) =>
+              `<button type="button" class="demo-btn" onclick="document.getElementById('rep-hora').value='${escapeHtml(h)}'">${escapeHtml(h)}</button>`
+          )
+          .join(' ');
+    }
+  } catch (_) {
+    box.textContent = '';
+  }
+};
+
+window.guardarReprogramacionFormulario = async (e) => {
+  e.preventDefault();
+  const idVisita = document.getElementById('rep-id-visita').value;
+  const nuevaFecha = document.getElementById('rep-fecha').value.trim();
+  const nuevaHora = document.getElementById('rep-hora').value.trim();
+  const motivo = document.getElementById('rep-motivo').value.trim();
+
+  if (!motivo) {
     mostrarAlerta('RN-08: El motivo es obligatorio para reprogramar una visita.', 'error');
     return;
   }
@@ -603,11 +671,12 @@ window.reprogramarVisita = async (idVisita, fechaActual, horaActual) => {
     await apiFetch(`/api/visitas/${idVisita}/reprogramar`, {
       method: 'PATCH',
       body: JSON.stringify({
-        fecha: nuevaFecha.trim(),
-        horaInicio: nuevaHora.trim(),
-        motivo: motivo.trim()
+        fecha: nuevaFecha,
+        horaInicio: nuevaHora,
+        motivo
       })
     });
+    cerrarFormularioReprogramar();
     mostrarAlerta('Visita reprogramada exitosamente, historial registrado (RF-11) y aviso enviado (RN-10).');
     await cargarTodo();
   } catch (err) {

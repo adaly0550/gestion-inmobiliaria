@@ -237,6 +237,40 @@
         </table>
       </div>
       <div id="pag-visitas" class="pagination"></div>
+
+      <!-- FORMULARIO VISUAL DE REPROGRAMACIÓN (HU-06 / RF-08 / RN-08) -->
+      <div id="card-reprogramar" class="form-card" style="display:none; margin-top:20px; border-left: 4px solid #3498db;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 id="titulo-form-reprogramar" style="margin:0;">Reprogramar Visita #<span id="rep-id-texto"></span> (HU-06 / RF-08)</h3>
+          <button type="button" class="btn btn-secondary btn-small" onclick="cerrarFormularioReprogramar()">Cerrar</button>
+        </div>
+        <p id="rep-info-actual" class="rule-note" style="margin-bottom:12px;"></p>
+        <form onsubmit="guardarReprogramacionFormulario(event)">
+          <input type="hidden" id="rep-id-visita">
+          <input type="hidden" id="rep-id-propiedad">
+          <input type="hidden" id="rep-id-cliente">
+          <input type="hidden" id="rep-id-asesor">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nueva Fecha *</label>
+              <input type="date" id="rep-fecha" required onchange="actualizarHorariosReprogramacion()">
+            </div>
+            <div class="form-group">
+              <label>Nueva Hora Inicio (60 min - RN-04) *</label>
+              <input type="time" id="rep-hora" required>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label>Motivo Obligatorio del Cambio (RN-08) *</label>
+              <input type="text" id="rep-motivo" placeholder="Ej. El cliente solicitó mover la cita media hora más tarde" required>
+            </div>
+          </div>
+          <div id="rep-horarios-libres-box" class="rule-note" style="margin-top: 8px;"></div>
+          <div style="margin-top: 12px; display:flex; gap:8px;">
+            <button type="submit" class="btn btn-primary">Guardar Reprogramación</button>
+            <button type="button" class="btn btn-secondary" onclick="cerrarFormularioReprogramar()">Cancelar</button>
+          </div>
+        </form>
+      </div>
     </section>
 
     <!-- PESTAÑA 4: AUDITORÍA (HU-09 / RF-11) -->
