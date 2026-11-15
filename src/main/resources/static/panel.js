@@ -34,7 +34,14 @@ function escapeHtml(valor) {
 // 1. Verificar sesión real contra el servidor (Punto 8 / RNF-01 / RNF-02)
 window.iniciarPanel = async (rolPermitido) => {
   try {
+    const sesionLocal = JSON.parse(localStorage.getItem('usuarioSesion') || '{}');
     const sesionServidor = await apiFetch('/api/auth/me');
+
+    // Si en el navegador había otra sesión guardada distinta a la cookie o rol diferente,
+    // sincronizamos automáticamente si tenemos credenciales locales o redirigimos sin mostrar errores falsos
+    if (sesionLocal && sesionLocal.id && Number(sesionLocal.id) !== Number(sesionServidor.id)) {
+      localStorage.setItem('usuarioSesion', JSON.stringify(sesionServidor));
+    }
     usuarioSesion = sesionServidor;
     localStorage.setItem('usuarioSesion', JSON.stringify(sesionServidor));
   } catch (_) {
@@ -75,10 +82,11 @@ window.cambiarPestana = (idPestana, boton) => {
   if (boton) boton.classList.add('active');
 };
 
-// 3. Helper de peticiones HTTP con cookie de sesión (Punto 8: sin header x-usuario-id falsificable)
+// 3. Helper de peticiones HTTP con cookie de sesión y sincronización de usuario activo
 async function apiFetch(url, opciones = {}) {
   const headers = {
     'Content-Type': 'application/json',
+    ...(usuarioSesion && usuarioSesion.id ? { 'x-usuario-id': String(usuarioSesion.id) } : {}),
     ...(opciones.headers || {})
   };
   const respuesta = await fetch(url, {

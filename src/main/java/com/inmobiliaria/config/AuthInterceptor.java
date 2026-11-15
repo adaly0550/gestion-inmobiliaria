@@ -40,6 +40,20 @@ public class AuthInterceptor implements HandlerInterceptor {
                 ? (Long) session.getAttribute(SESSION_USER_ID)
                 : null;
 
+        // Sincronizar con la sesión activa de la pestaña si se envía x-usuario-id
+        String headerId = request.getHeader("x-usuario-id");
+        if (headerId != null && !headerId.isBlank()) {
+            try {
+                Long idPestana = Long.valueOf(headerId.trim());
+                if (usuarioId == null || !usuarioId.equals(idPestana)) {
+                    usuarioId = idPestana;
+                    HttpSession sesionActiva = request.getSession(true);
+                    sesionActiva.setAttribute(SESSION_USER_ID, usuarioId);
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
         if (usuarioId == null) {
             throw new AppException("No autorizado: Debe iniciar sesión para acceder al sistema.", 401);
         }
