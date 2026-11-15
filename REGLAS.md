@@ -1,65 +1,61 @@
 # Reglas del Proyecto (`REGLAS.md`)
 
-Este documento establece los **principios arquitectónicos, convenciones de código y restricciones técnicas/operativas** que rigen el desarrollo y mantenimiento del **Sistema de Gestión Inmobiliaria**.
+Este documento establece los **principios arquitectónicos, convenciones de código y restricciones técnicas/operativas** que rigen el desarrollo y mantenimiento del **Sistema de Gestión Inmobiliaria** en **Spring Boot + Spring Data JPA**.
 
 ---
 
 ## 1. Principios del Proyecto
 
-### 1.1. Arquitectura en Capas (Separación de Responsabilidades)
-El sistema está estructurado bajo una arquitectura limpia en capas dentro de `src/` para garantizar mantenibilidad, legibilidad y facilidad de prueba:
-- **Configuración (`src/config/`)**: Inicialización de la conexión SQLite, activación de integridad referencial (`PRAGMA foreign_keys = ON`) y carga de datos semilla (`database.js`).
-- **Constantes y Enumeraciones (`src/constants/`)**: Centralización de estados (`EstadoPropiedad`, `EstadoVisita`), roles (`Rol`), tipos de cambio (`TipoCambio`) y horarios de atención (`HorarioAtencion`) usando objetos inmutables (`Object.freeze`).
-- **Modelos (`src/models/`)**: Representación clara de las entidades del dominio (`Usuario`, `Propiedad`, `Cliente`, `Visita`, `HistorialVisita`) y sus llaves foráneas.
-- **Repositorios (`src/repositories/`)**: Única capa autorizada para ejecutar consultas SQL (`SELECT`, `INSERT`, `UPDATE`) sobre SQLite. Ningún controlador o servicio debe escribir SQL directamente.
-- **Servicios (`src/services/`)**: Contienen el **100% de la lógica y reglas de negocio** (`RN-01` a `RN-11`). Validan datos antes de invocar a los repositorios.
-- **Controladores (`src/controllers/`)**: Gestionan exclusivamente la entrada/salida HTTP (`req`, `res`), códigos de estado (`200`, `201`, `400`, `401`, `403`, `404`, `500`) y delegan el procesamiento a los servicios.
-- **Middlewares (`src/middlewares/`)**: Validación transversal de sesión (`verificarUsuario`), autorización por rol (`requerirRol`) y manejo centralizado de errores (`errorHandler`).
-- **Presentación (`src/public/`)**: Interfaz web ligera en HTML5, CSS3 y JavaScript Vanilla (`index.html`, `admin.html`, `asesor.html`, `login.js`, `panel.js`).
+### 1.1. Arquitectura por Capas y las 5 Familias de Clases (Bajo Acoplamiento)
+El sistema está estructurado en **Java 21 + Spring Boot 3** siguiendo exactamente el diagrama de arquitectura por capas del documento de análisis y diseño:
+1. **Primera Familia: Entities (`com.inmobiliaria.model`)**:
+   - Representan las entidades del DER mapeadas con JPA/Hibernate (`@Entity`): `Cliente`, `Propiedad`, `Usuario`, `Visita`, `HistorialVisita` y `Aviso`.
+   - `Usuario` protege el atributo `contrasena` con `@JsonProperty(access = WRITE_ONLY)` para que nunca se exponga en respuestas JSON (Punto 15).
+2. **Segunda Familia: Controller (`com.inmobiliaria.controller`)**:
+   - `PropiedadesController`, `ClientesController`, `VisitasController`, `AuthController`, `AuditoriaController` y `AvisoController`.
+   - Reciben las peticiones HTTP (`GET`, `POST`, `PATCH`), delegan el trabajo a la **interface** de su `Service` inyectada por constructor (Punto 18) y no contienen lógica de negocio (Punto 14).
+3. **Tercera Familia: Service Interface (`com.inmobiliaria.service`)**:
+   - Contratos que declaran **qué** operaciones ofrece cada módulo (`PropiedadService`, `ClienteService`, `VisitaService`, `AuthService`, `AuditoriaService`, `AvisoService`) desacoplando la presentación de la implementación.
+4. **Cuarta Familia: Implementación (`com.inmobiliaria.service.impl`)**:
+   - Clases `@Service` (`PropiedadServiceImpl`, `ClienteServiceImpl`, `VisitaServiceImpl`, etc.) que aplican el **100% de las Reglas de Negocio (`RN-01` a `RN-11`)** dentro de transacciones (`@Transactional`).
+5. **Quinta Familia: Repository (`com.inmobiliaria.repository`)**:
+   - Interfaces que extienden `JpaRepository` de **Spring Data JPA** (`PropiedadRepository`, `ClienteRepository`, `UsuarioRepository`, `VisitaRepository`, `HistorialVisitaRepository`, `AvisoRepository`).
 
-### 1.2. Integridad y Trazabilidad Total (Auditoría por Diseño)
-- Toda operación crítica sobre el agendamiento o cancelación de visitas debe dejar rastro verificable en las tablas de **Auditoría (`HistorialVisitas`)** y **Avisos Internos (`Avisos`)**.
-- Se prioriza la preservación histórica de los datos por encima de la eliminación física.
+### 1.2. Integridad, Transaccionalidad y Trazabilidad Total
+- Las operaciones de escritura (`agendarVisita`, `cancelarVisita`, `reprogramarVisita`, `cambiarEstado`) se ejecutan de forma atómica con `@Transactional` (Punto 26).
+- Toda cancelación o reprogramación registra en `HistorialVisita` el usuario responsable, tipo de cambio (`CANCELACION` o `REPROGRAMACION`), motivo, fecha/hora exacta del cambio, `fechaAnterior` (`"YYYY-MM-DD HH:MM"`) y `fechaNueva` (`"YYYY-MM-DD HH:MM"`).
 
-### 1.3. Simplicidad y Cero Dependencias Innecesarias
-- Uso de **Node.js con ES Modules (`"type": "module"`)**, **Express** y **SQLite** (`sqlite` + `sqlite3`).
-- El frontend utiliza JavaScript nativo (`fetch` API) sin frameworks pesados para asegurar carga inmediata y compatibilidad total con cualquier navegador o entorno académico (IntelliJ IDEA / VS Code).
-
-### 1.4. Consistencia en Contratos de API
-- Todas las respuestas de error del backend deben retornar un objeto JSON uniforme con las llaves `{ error, mensaje }` y el código HTTP correspondiente.
+### 1.3. Consistencia en Contratos de API y Manejo de Errores
+- Todas las excepciones de negocio utilizan `AppException(mensaje, status)` y son formateadas centralizadamente por `GlobalExceptionHandler` devolviendo siempre `{ error, mensaje }` con el código HTTP exacto (`400`, `401`, `403`, `404`, `500`) (Punto 17).
 
 ---
 
 ## 2. Restricciones del Proyecto
 
 ### 2.1. Restricciones de Base de Datos y Persistencia
-1. **Prohibición de Borrado Físico (`RNF-03`)**:
-   - Queda estrictamente prohibido ejecutar sentencias `DELETE FROM Visitas` o `DELETE FROM HistorialVisitas`.
-   - Toda cancelación se realiza mediante **borrado lógico** (`UPDATE Visitas SET estado = 'CANCELADA'`).
-2. **Integridad Referencial Obligatoria**:
-   - La base de datos debe operar siempre con `PRAGMA foreign_keys = ON;`.
-   - No se pueden registrar visitas hacia clientes, propiedades o usuarios inexistentes.
-3. **Unicidad de Registros**:
-   - No se permiten dos clientes con la misma `identificacion` (controlado en servicio y mediante índice único `idx_clientes_identificacion`).
-   - No se permiten dos propiedades con el mismo `codigoInterno` (`UNIQUE`).
-   - No se permiten dos usuarios con el mismo nombre de `usuario` (`UNIQUE`).
+1. **Prohibición de Borrado Físico (`RNF-03` y `RN-08`)**:
+   - Ninguna visita se elimina de la base de datos. Al cancelar una visita únicamente cambia su estado a `CANCELADA`.
+2. **Integridad Referencial y Unicidad**:
+   - Llaves foráneas activas mediante JPA (`@ManyToOne` / `@JoinColumn`) entre `Visita`, `Cliente`, `Propiedad`, `Usuario`, `HistorialVisita` y `Aviso`.
+   - Unicidad obligatoria en `Cliente.identificacion`, `Propiedad.codigoInterno` y `Usuario.usuario`.
 
-### 2.2. Restricciones de Seguridad y Control de Acceso
-1. **Autenticación Obligatoria en Operaciones del Sistema**:
-   - Los endpoints de propiedades, visitas, avisos y auditoría exigen el encabezado `x-usuario-id` validado contra la tabla `Usuarios`.
-2. **Segregación Estricta de Roles (`RN-06` y `RN-07`)**:
-   - **Rol `ADMINISTRADOR`**: Único autorizado para registrar propiedades, cambiar el estado de una propiedad (`DISPONIBLE`, `RESERVADA`, `VENDIDA`, `ALQUILADA`) y consultar el módulo de auditoría (`/api/auditor`).
-   - **Rol `ASESOR`**: Solo puede consultar propiedades en estado `DISPONIBLE`, gestionar clientes y visualizar/cancelar únicamente las visitas que él mismo agendó (`idUsuario === usuarioSesion.id`).
+### 2.2. Restricciones de Seguridad (`RNF-01`, `RNF-02`, `RN-06`, `RN-07`, `RN-09`)
+1. **Sesión en Servidor No Falsificable (Punto 8)**:
+   - El sistema utiliza sesiones HTTP de servidor con cookie `httpOnly` y `SameSite=Lax`. No se confía en encabezados enviados por el cliente. En cada petición `AuthInterceptor` carga el `Usuario` y su `Rol` directamente desde la base de datos.
+2. **Contraseñas Cifradas con BCrypt (Punto 9)**:
+   - Todas las contraseñas se almacenan y verifican con `BCryptPasswordEncoder`.
+3. **Autenticación Obligatoria en Todos los Módulos (Punto 10 / `RN-09`)**:
+   - Ningún endpoint de clientes, propiedades, visitas, auditoría o avisos es público; solo asesores y administradores autenticados acceden al sistema.
+4. **Prevención de XSS en el Panel Web (Punto 11)**:
+   - Todos los textos dinámicos renderizados en tablas pasan por `escapeHtml()` o `textContent`.
 
 ### 2.3. Restricciones Operativas y de Negocio
-1. **Duración Fija de Visitas (`RN-04`)**:
-   - El usuario solo ingresa la `horaInicio`; el sistema calcula automáticamente `horaFin = horaInicio + 60 minutos`. No se admiten duraciones manuales distintas a 1 hora.
-2. **Cero Solapamiento de Horarios (`RN-04`)**:
-   - Ningún asesor, ningún cliente y ninguna propiedad pueden tener dos visitas activas (`PENDIENTE`) que se crucen en la misma fecha y rango horario.
-3. **Restricción de Horario Laboral (`RN-11`)**:
-   - **Lunes a Viernes**: `09:00` a `18:00` (última visita inicia a las `17:00`).
-   - **Sábados**: `09:00` a `13:00` (última visita inicia a las `12:00`).
-   - **Domingos y fechas/horas pasadas**: Estrictamente bloqueados para agendamiento.
-
-### 2.4. Restricciones de Control de Versiones (Git)
-- No se deben subir al repositorio las carpetas `node_modules/`, `out/` ni archivos de variables de entorno `.env` (definido en `.gitignore`).
+1. **Duración Fija de 60 Minutos y No Solapamiento (`RN-04`)**:
+   - Toda visita dura exactamente **60 minutos** (`horaFin = horaInicio + 60 min`).
+   - En reprogramaciones se excluye la propia visita (`v.id != idVisita`) al verificar cruces de horario.
+2. **Asesor Asignado Válido (`RN-03`, `RN-07`, Punto 12)**:
+   - Toda visita es atendida por un usuario con rol `ASESOR` validado con `UsuarioRepository`.
+3. **Cancelación en Cascada Solo de Visitas Futuras (`RN-02`, Punto 7)**:
+   - Cuando una propiedad pasa a `RESERVADA`, `VENDIDA` o `ALQUILADA`, solo se cancelan las visitas `PENDIENTE` cuya fecha y hora de inicio sean posteriores al momento actual.
+4. **Restricciones de Control de Versiones (Punto 29)**:
+   - Archivos locales generados (`target/`, `data/`, `.idea/`, `*.iml`, `.env`, `inmobiliaria.sqlite`) están excluidos en `.gitignore`.

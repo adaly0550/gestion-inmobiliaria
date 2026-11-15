@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Administrador - Gestión Inmobiliaria</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <h1>Sistema de Inmobiliaria</h1>
+    <div class="user-info">
+      <span id="nombre-usuario">Cargando...</span>
+      <span id="rol-usuario" class="badge-rol">ADMIN</span>
+      <button class="btn btn-secondary btn-small" onclick="cerrarSesion()">Cerrar Sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="alerta-global" class="alert"></div>
+
+    <!-- Pestañas de navegación -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="cambiarPestana('tab-propiedades', this)">Propiedades</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-clientes', this)">Clientes</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-visitas', this)">Visitas y Seguimiento</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-auditoria', this)">Auditoría (HU-09)</button>
+      <button class="tab-btn" onclick="cambiarPestana('tab-avisos', this)">
+        Avisos (<span id="contador-avisos">0</span>)
+      </button>
+    </div>
+
+    <!-- PESTAÑA 1: PROPIEDADES (HU-01, HU-02, RN-05, RN-06, RN-02) -->
+    <section id="tab-propiedades" class="tab-content active">
+      <div class="form-card">
+        <h3>Registrar Nueva Propiedad (HU-01 / RF-01)</h3>
+        <form onsubmit="registrarPropiedad(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Código Interno *</label>
+              <input type="text" id="prop-codigo" placeholder="Ej. P-03" required>
+            </div>
+            <div class="form-group">
+              <label>Dirección *</label>
+              <input type="text" id="prop-direccion" placeholder="Ej. Av. 6 de Diciembre" required>
+            </div>
+            <div class="form-group">
+              <label>Tipo *</label>
+              <select id="prop-tipo" required>
+                <option value="Casa">Casa</option>
+                <option value="Departamento">Departamento</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Modalidad *</label>
+              <select id="prop-modalidad" required>
+                <option value="VENTA">VENTA</option>
+                <option value="ALQUILER">ALQUILER</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label>Descripción (Opcional)</label>
+              <input type="text" id="prop-descripcion" placeholder="Detalles del inmueble (habitaciones, área, parqueadero...)">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Guardar Propiedad</button>
+        </form>
+        <p class="rule-note">
+          <strong>Regla RN-02:</strong> Si cambias una propiedad a RESERVADA, VENDIDA o ALQUILADA, sus visitas futuras pendientes se cancelan automáticamente.
+        </p>
+      </div>
+
+      <h3>Listado General de Propiedades</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Código</th>
+              <th>Dirección</th>
+              <th>Tipo</th>
+              <th>Modalidad</th>
+              <th>Descripción</th>
+              <th>Estado</th>
+              <th>Cambiar Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-propiedades"></tbody>
+        </table>
+      </div>
+      <div id="pag-propiedades" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 2: CLIENTES (HU-04 / RF-04 / RN-05) -->
+    <section id="tab-clientes" class="tab-content">
+      <div class="form-card">
+        <h3>Nuevo Cliente</h3>
+        <form onsubmit="registrarCliente(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Identificación *</label>
+              <input type="text" id="cli-identificacion" placeholder="Cédula o RUC" required>
+            </div>
+            <div class="form-group">
+              <label>Nombre *</label>
+              <input type="text" id="cli-nombre" placeholder="Nombre" required>
+            </div>
+            <div class="form-group">
+              <label>Apellido</label>
+              <input type="text" id="cli-apellido" placeholder="Apellido">
+            </div>
+            <div class="form-group">
+              <label>Teléfono *</label>
+              <input type="text" id="cli-telefono" placeholder="099..." required>
+            </div>
+            <div class="form-group">
+              <label>Correo (Opcional)</label>
+              <input type="email" id="cli-correo" placeholder="correo@ejemplo.com">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Guardar Cliente</button>
+        </form>
+        <p class="rule-note"><strong>Regla RN-05:</strong> Identificación, nombre y teléfono son obligatorios.</p>
+      </div>
+
+      <h3>Clientes Registrados</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Identificación</th>
+              <th>Nombre</th>
+              <th>Apellido</th>
+              <th>Teléfono</th>
+              <th>Correo</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-clientes"></tbody>
+        </table>
+      </div>
+      <div id="pag-clientes" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 3: VISITAS Y SEGUIMIENTO (HU-05, HU-06, HU-08, HU-09, HU-10) -->
+    <section id="tab-visitas" class="tab-content">
+      <div class="form-card">
+        <h3>Agendar Visita (Duración automática: 60 minutos - RN-04)</h3>
+        <form onsubmit="agendarVisita(event)">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Cliente *</label>
+              <select id="visita-cliente" required onchange="actualizarHorariosSugeridos()"></select>
+            </div>
+            <div class="form-group">
+              <label>Propiedad Disponible (RN-01) *</label>
+              <select id="visita-propiedad" required onchange="actualizarHorariosSugeridos()"></select>
+            </div>
+            <div class="form-group">
+              <label>Asesor Asignado (RN-03) *</label>
+              <select id="visita-asesor" required onchange="actualizarHorariosSugeridos()"></select>
+            </div>
+            <div class="form-group">
+              <label>Fecha *</label>
+              <input type="date" id="visita-fecha" required onchange="actualizarHorariosSugeridos()">
+            </div>
+            <div class="form-group">
+              <label>Hora Inicio (RN-04) *</label>
+              <input type="time" id="visita-hora" required>
+            </div>
+          </div>
+          <div id="horarios-libres-box" class="rule-note" style="margin-top: 8px;"></div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Agendar Visita</button>
+        </form>
+        <p class="rule-note">
+          <strong>Reglas:</strong> Solo propiedades DISPONIBLES (RN-01). Duración exacta de 60 minutos sin cruce de horarios (RN-04).<br>
+          <strong>Horario de atención:</strong> Lunes a Viernes de 09:00 a 18:00 (última cita 17:00) | Sábados de 09:00 a 13:00 (última cita 12:00) | Domingos cerrado.
+        </p>
+      </div>
+
+      <!-- Filtros HU-08 (Pendientes por fecha/asesor) y HU-10 (Seguimiento por cliente/propiedad) -->
+      <div class="form-card" style="padding: 12px;">
+        <h3 style="margin-bottom: 10px;">Filtros de Consulta (HU-08: Pendientes / HU-10: Seguimiento Histórico)</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Modo de vista</label>
+            <select id="filtro-modo-visita" onchange="filtrarVisitas()">
+              <option value="TODAS">Todas las visitas (Histórico)</option>
+              <option value="PENDIENTES">Solo visitas PENDIENTES (HU-08)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Filtrar por Fecha (HU-08)</label>
+            <input type="date" id="filtro-fecha-visita" onchange="filtrarVisitas()">
+          </div>
+          <div class="form-group">
+            <label>Filtrar por Asesor (HU-08)</label>
+            <select id="filtro-asesor-visita" onchange="filtrarVisitas()">
+              <option value="">-- Todos los asesores --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Por Cliente (HU-10 / RF-12)</label>
+            <select id="filtro-cliente-visita" onchange="filtrarPorClienteOPropiedad('cliente')">
+              <option value="">-- Todos los clientes --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Por Propiedad (HU-10 / RF-12)</label>
+            <select id="filtro-propiedad-visita" onchange="filtrarPorClienteOPropiedad('propiedad')">
+              <option value="">-- Todas las propiedades --</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top: 10px;">
+          <button class="btn btn-secondary btn-small" onclick="limpiarFiltrosVisitas()">Limpiar todos los filtros</button>
+        </div>
+      </div>
+
+      <h3>Listado de Visitas</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Cliente</th>
+              <th>Propiedad</th>
+              <th>Asesor</th>
+              <th>Fecha</th>
+              <th>Horario</th>
+              <th>Estado (RNF-03)</th>
+              <th>Acciones (HU-06 / HU-09)</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-visitas"></tbody>
+        </table>
+      </div>
+      <div id="pag-visitas" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 4: AUDITORÍA (HU-09 / RF-11) -->
+    <section id="tab-auditoria" class="tab-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h3 id="titulo-auditoria" style="margin:0;">Registro de Auditoría e Historial de Cambios (HU-09 / RF-11)</h3>
+        <button id="btn-ver-toda-auditoria" class="btn btn-secondary btn-small" style="display:none;" onclick="cargarAuditoria()">
+          Ver todo el historial global
+        </button>
+      </div>
+      <p class="rule-note">
+        <strong>Regla RN-08 y RNF-03:</strong> Ninguna visita se borra. Cada cancelación o reprogramación guarda usuario, motivo, fecha/hora del cambio, fecha/hora anterior y fecha/hora nueva.
+      </p>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Visita</th>
+              <th>Usuario Responsable</th>
+              <th>Tipo Cambio</th>
+              <th>Motivo</th>
+              <th>Fecha/Hora Anterior</th>
+              <th>Fecha/Hora Nueva</th>
+              <th>Fecha y Hora Cambio</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-auditoria"></tbody>
+        </table>
+      </div>
+      <div id="pag-auditoria" class="pagination"></div>
+    </section>
+
+    <!-- PESTAÑA 5: AVISOS INTERNOS (HU-11 / RF-13 / RN-10) -->
+    <section id="tab-avisos" class="tab-content">
+      <h3>Avisos Internos del Sistema (RN-10)</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Asesor Destinatario</th>
+              <th>Mensaje</th>
+              <th>Fecha y Hora</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-avisos"></tbody>
+        </table>
+      </div>
+      <div id="pag-avisos" class="pagination"></div>
+    </section>
+  </main>
+
+  <script src="panel.js"></script>
+  <script>
+    iniciarPanel('ADMINISTRADOR');
+  </script>
+</body>
+</html>

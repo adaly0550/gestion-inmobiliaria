@@ -1,85 +1,59 @@
 # Plan de Trabajo, Validación, Pruebas y Cumplimiento (`TASK.md`)
 
-Este documento organiza la **división equitativa del trabajo entre 2 integrantes**, el protocolo de **validación y pruebas de calidad (QA)** y la **matriz de cumplimiento** del **Sistema de Gestión Inmobiliaria**.
+Este documento detalla la **división del trabajo entre 2 integrantes** (Grecco Cedeño y Britany Tahis Macias), el **protocolo de validación y pruebas de QA** y la **matriz de cumplimiento de los 31 puntos de auditoría** sobre la arquitectura **Spring Boot + Spring Data JPA**.
 
 ---
 
 ## 1. División del Trabajo entre 2 Personas
 
-El proyecto se divide en dos frentes complementarios de igual carga técnica para que ambos integrantes dominen tanto la arquitectura como la exposición del sistema:
+### 👤 Integrante 1 (Grecco Cedeño): Dominio Propiedades, Clientes, Seguridad y Persistencia JPA
+**Responsabilidad principal:** Configuración de Spring Boot y JPA, seguridad con sesiones HTTP y BCrypt (`RNF-01`, `RNF-02`, `RN-09`), módulo de Propiedades (`HU-01`, `HU-02`, `HU-03`, `RN-05`, `RN-06`) y módulo de Clientes (`HU-04`, `RN-05`).
 
-### 👤 Integrante 1: Arquitectura Base, Usuarios, Clientes, Propiedades y Seguridad
-**Responsabilidad principal:** Configuración del motor SQLite, autenticación, control de acceso por roles (`RN-06`), módulo de Clientes (`RN-05`), catálogo de Propiedades (`RN-01`, `RN-02`) y vista de Administración.
-
-| # | Tarea Asignada | Archivos Responsables | Estado |
+| # | Tarea Asignada | Clases / Archivos Responsables | Estado |
 | :---: | :--- | :--- | :---: |
-| **1.1** | Configuración del servidor Express, conexión SQLite, `PRAGMA foreign_keys = ON`, tablas y datos semilla. | `server.js`, `src/app.js`, `src/config/database.js` | ✅ Completado |
-| **1.2** | Definición de enumeraciones (`EstadoPropiedad`, `Rol`, `HorarioAtencion`) y modelos de dominio. | `src/constants/enums.js`, `src/models/*` | ✅ Completado |
-| **1.3** | Implementación de login (`POST /api/auth/login`) y middlewares de sesión y rol (`verificarUsuario`, `requerirRol`). | `src/routes/authRoutes.js`, `src/middlewares/authMiddleware.js`, `src/middlewares/errorHandler.js` | ✅ Completado |
-| **1.4** | Módulo completo de **Clientes** con validación obligatoria y bloqueo de identificación duplicada (`RN-05`). | `src/repositories/clienteRepository.js`, `src/services/clienteService.js`, `src/controllers/clienteController.js`, `src/routes/clienteRoutes.js` | ✅ Completado |
-| **1.5** | Módulo completo de **Propiedades**: registro, listado de disponibles y cambio de estado con disparo de cancelación automática (`RN-02` y `RN-06`). | `src/repositories/propiedadRepository.js`, `src/services/propiedadService.js`, `src/controllers/propiedadController.js`, `src/routes/propiedadRoutes.js` | ✅ Completado |
-| **1.6** | Interfaz de Inicio de Sesión y Panel del Administrador. | `src/public/index.html`, `src/public/login.js`, `src/public/admin.html`, `src/public/styles.css` | ✅ Completado |
+| **1.1** | Configuración de Maven (`pom.xml`), propiedades de conexión JPA (H2 persistente + soporte MySQL) y sembrado con BCrypt. | `pom.xml`, `application.properties`, `DataInitializer.java` | ✅ Completado |
+| **1.2** | Primera Familia (`Entities`) y Enumeraciones de Propiedad, Cliente y Usuario (`descripcion` en Propiedad, `WRITE_ONLY` en contraseña). | `Cliente.java`, `Propiedad.java`, `Usuario.java`, `constants/*` | ✅ Completado |
+| **1.3** | Quinta Familia (`Repository`) para Propiedad, Cliente y Usuario con Spring Data JPA. | `PropiedadRepository.java`, `ClienteRepository.java`, `UsuarioRepository.java` | ✅ Completado |
+| **1.4** | Seguridad real por sesión HTTP (`httpOnly`), interceptor de autenticación (`RN-09`), login/logout con BCrypt y manejo global de errores (`AppException`). | `AuthInterceptor.java`, `WebConfig.java`, `AuthController.java`, `AuthServiceImpl.java`, `GlobalExceptionHandler.java` | ✅ Completado |
+| **1.5** | Tercera, Cuarta y Segunda Familia para **Propiedades** (`PropiedadService`, `PropiedadServiceImpl`, `PropiedadesController`) y **Clientes** (`ClienteService`, `ClienteServiceImpl`, `ClientesController`). | `PropiedadService*.java`, `PropiedadesController.java`, `ClienteService*.java`, `ClientesController.java` | ✅ Completado |
+| **1.6** | Vista de Login y Panel del Administrador con prevención de XSS (`escapeHtml`). | `index.html`, `login.js`, `admin.html`, `styles.css` | ✅ Completado |
 
 ---
 
-### 👤 Integrante 2: Motor de Visitas, Horarios, Cancelaciones, Auditoría y Avisos
-**Responsabilidad principal:** Lógica central de agendamiento de visitas (`RN-04`, `RN-11`), aislamiento por asesor (`RN-07`), cancelación con motivo (`RN-08`), conservación histórica (`RNF-03`), Auditoría (`HU-09`), Avisos (`RN-10`) y vista del Asesor.
+### 👤 Integrante 2 (Britany Tahis Macias): Motor de Visitas, Reprogramación, Historial, Seguimiento y Avisos
+**Responsabilidad principal:** Módulo central de Visitas (`HU-05` a `HU-11`), agendamiento con validación de asesor (`RN-03`) y cruces de 60 min (`RN-04`), reprogramación (`PATCH /visitas/{id}/reprogramar`), cancelación manual y en cascada solo de visitas futuras (`RN-02`, `RN-08`, `RNF-03`), historial por visita (`RF-11`), seguimiento por cliente/propiedad (`RF-12`) y avisos internos (`RN-10`).
 
-| # | Tarea Asignada | Archivos Responsables | Estado |
+| # | Tarea Asignada | Clases / Archivos Responsables | Estado |
 | :---: | :--- | :--- | :---: |
-| **2.1** | Repositorio de **Visitas** con consultas relacionales (`LEFT JOIN` con `Clientes`, `Propiedades` y `Usuarios`). | `src/repositories/visitaRepository.js` | ✅ Completado |
-| **2.2** | Servicio de **Agendamiento (`RN-01`, `RN-04`, `RN-11`)**: cálculo de 60 minutos, validación de horario laboral y bloqueo de cruces (Asesor, Cliente, Propiedad). | `src/services/visitaService.js` (`agendarVisita`, `validarHorarioAtencion`) | ✅ Completado |
-| **2.3** | Servicio de **Cancelación Manual y Automática (`RN-02`, `RN-07`, `RN-08`, `RNF-03`)**: validación de motivo obligatorio, permisos de asesor y borrado lógico. | `src/services/visitaService.js` (`cancelarVisita`, `cancelarVisitasPorPropiedad`), `src/controllers/visitaController.js`, `src/routes/visitaRoutes.js` | ✅ Completado |
-| **2.4** | Módulo de **Auditoría (`HU-09`)**: persistencia en `HistorialVisitas` y endpoint exclusivo para Administrador (`/api/auditor`). | `src/repositories/historialVisitaRepository.js`, `src/app.js` | ✅ Completado |
-| **2.5** | Módulo de **Avisos Internos (`RN-10`)**: generación automática al agendar/cancelar y consulta filtrada por rol (`/api/avisos`). | `src/repositories/avisoRepository.js`, `src/app.js` | ✅ Completado |
-| **2.6** | Panel del Asesor y lógica dinámica de tablas, filtros por fecha y paginación en frontend. | `src/public/asesor.html`, `src/public/panel.js` | ✅ Completado |
+| **2.1** | Primera y Quinta Familia para `Visita`, `HistorialVisita` y `Aviso` (`VisitaRepository`, `HistorialVisitaRepository`, `AvisoRepository`). | `Visita.java`, `HistorialVisita.java`, `Aviso.java`, `*Repository.java` | ✅ Completado |
+| **2.2** | Extracción de métodos privados del diagrama de `VisitaServiceImpl`: `validarDisponibilidad`, `calcularHoraFin`, `validarCruceHorario`, `validarAsesor`, `registrarHistorial`. | `VisitaServiceImpl.java` | ✅ Completado |
+| **2.3** | Implementación de **Agendar**, **Cancelar** y **Reprogramar** visitas (`reprogramarVisita` excluyendo la propia visita en el cruce y registrando `fechaAnterior` y `fechaNueva` con fecha y hora). | `VisitaService.java`, `VisitaServiceImpl.java`, `VisitasController.java` | ✅ Completado |
+| **2.4** | Cancelación automática en cascada **solo de visitas futuras** con el motivo exacto del PDF (`"propiedad reservada"`, `"propiedad vendida"`, `"propiedad alquilada"`). | `VisitaServiceImpl.cancelarVisitasPorPropiedad()` | ✅ Completado |
+| **2.5** | Consultas avanzadas: pendientes por fecha/asesor (`RF-10`), historial de una visita (`GET /visitas/{id}/historial` - `RF-11`), seguimiento por cliente o propiedad (`RF-12`), horarios libres (`HU-05`) y avisos (`RF-13`). | `VisitasController.java`, `AuditoriaController.java`, `AvisoController.java` | ✅ Completado |
+| **2.6** | Panel del Asesor y lógica interactiva de reprogramación, filtros e historial por visita en frontend. | `asesor.html`, `panel.js` | ✅ Completado |
 
 ---
 
-## 2. Validación y Pruebas Ejecutadas (Plan de QA)
+## 2. Matriz de Verificación de los 31 Puntos de Auditoría
 
-### 2.1. Validación Técnica y Sintáctica
-- **Verificación de sintaxis ES Modules**: Todos los archivos `.js` del backend y frontend fueron validados sin errores de sintaxis.
-- **Integridad Referencial SQLite**: Verificada la activación de `PRAGMA foreign_keys = ON` y las llaves foráneas en `Visitas`, `HistorialVisitas` y `Avisos`.
-
-### 2.2. Matriz de Pruebas Funcionales y de Reglas de Negocio (24/24 Superadas)
-
-| ID Prueba | Caso de Prueba | Resultado Esperado | Resultado Obtenido | Estado |
-| :---: | :--- | :--- | :--- | :---: |
-| **QA-01** | Carga de interfaz web (`index.html`, `admin.html`, `asesor.html`) | Respuesta HTTP `200 OK` | `200 OK` en local y túnel ngrok | ✅ PASS |
-| **QA-02** | Login con credenciales incorrectas | HTTP `401` con mensaje de error | `401 Unauthorized` | ✅ PASS |
-| **QA-03** | Login con `admin`, `carlos` y `laura` | HTTP `200` devolviendo `id`, `nombres`, `usuario`, `rol` | `200 OK` con rol exacto | ✅ PASS |
-| **QA-04** | Petición a ruta protegida sin `x-usuario-id` | HTTP `401 No autorizado` | `401 Unauthorized` | ✅ PASS |
-| **QA-05** | Registro de cliente sin identificación o teléfono (`RN-05`) | HTTP `400` indicando campos obligatorios | `400 Bad Request` (`RN-05`) | ✅ PASS |
-| **QA-06** | Registro de cliente con identificación repetida (`RN-05`) | HTTP `400` indicando duplicado | `400 Bad Request` | ✅ PASS |
-| **QA-07** | Asesor intenta crear propiedad o cambiar estado (`RN-06`) | HTTP `403 Acceso denegado` | `403 Forbidden` | ✅ PASS |
-| **QA-08** | Asesor intenta consultar `/api/auditor` (`RN-06` / `HU-09`) | HTTP `403 Acceso denegado` | `403 Forbidden` | ✅ PASS |
-| **QA-09** | Admin consulta `/api/auditor` (`HU-09`) | HTTP `200` con lista de historial | `200 OK` | ✅ PASS |
-| **QA-10** | Agendar visita en fecha pasada (`RN-11`) | HTTP `400` bloqueando fecha pasada | `400 Bad Request` | ✅ PASS |
-| **QA-11** | Agendar visita en día domingo (`RN-11`) | HTTP `400` indicando domingo cerrado | `400 Bad Request` | ✅ PASS |
-| **QA-12** | Agendar visita sábado fuera de `09:00-13:00` (`RN-11`) | HTTP `400` indicando horario de sábado | `400 Bad Request` | ✅ PASS |
-| **QA-13** | Agendar visita lunes-viernes fuera de `09:00-18:00` (`RN-11`) | HTTP `400` indicando horario L-V | `400 Bad Request` | ✅ PASS |
-| **QA-14** | Agendar visita válida (`RN-01`, `RN-04`, `RN-10`) | Crea visita de 60 min (`PENDIENTE`) + genera aviso | `201 Created` (`horaFin = +60m`) | ✅ PASS |
-| **QA-15** | Cruce de horario para mismo asesor, cliente o propiedad (`RN-04`) | HTTP `400` rechazando solapamiento | `400 Bad Request` (`RN-04`) | ✅ PASS |
-| **QA-16** | Cancelar visita sin ingresar motivo (`RN-08`) | HTTP `400` exigiendo motivo obligatorio | `400 Bad Request` (`RN-08`) | ✅ PASS |
-| **QA-17** | Cancelar visita válida (`RNF-03`, `HU-09`, `RN-10`) | Estado pasa a `CANCELADA`, no se borra fila, crea auditoría y aviso | `200 OK` y trazabilidad completa | ✅ PASS |
-| **QA-18** | Cambio de propiedad a `RESERVADA`/`VENDIDA`/`ALQUILADA` (`RN-02`) | Cancela automáticamente visitas `PENDIENTE` de esa propiedad | `200 OK` + cancelación en cascada | ✅ PASS |
-
----
-
-## 3. Matriz de Cumplimiento del Proyecto
-
-| Categoría | Requisito / Regla | Nivel de Cumplimiento | Evidencia en el Proyecto |
-| :--- | :--- | :---: | :--- |
-| **Base de Datos** | SQLite con relaciones `FOREIGN KEY` (`RNF-01`) | **100%** | `src/config/database.js` (`inmobiliaria.sqlite`) |
-| **Regla de Negocio** | `RN-01`: Solo propiedades `DISPONIBLE` reciben visitas | **100%** | `src/services/visitaService.js` |
-| **Regla de Negocio** | `RN-02`: Cancelación automática al cambiar estado de propiedad | **100%** | `src/services/propiedadService.js` y `visitaService.js` |
-| **Regla de Negocio** | `RN-04`: Duración exacta de 60 min y cero cruces de horario | **100%** | `src/services/visitaService.js` |
-| **Regla de Negocio** | `RN-05`: Campos obligatorios y cédula/RUC único en Clientes | **100%** | `src/services/clienteService.js` |
-| **Regla de Negocio** | `RN-06`: Exclusividad de Administrador (Propiedades y Auditoría) | **100%** | `src/routes/propiedadRoutes.js` y `src/app.js` |
-| **Regla de Negocio** | `RN-07`: Asesor solo gestiona y visualiza sus propias visitas | **100%** | `src/services/visitaService.js` |
-| **Regla de Negocio** | `RN-08`: Motivo obligatorio para cancelar visitas | **100%** | `src/services/visitaService.js` y `src/public/panel.js` |
-| **Regla de Negocio** | `RN-10`: Generación automática de Avisos Internos | **100%** | `src/repositories/avisoRepository.js` y `visitaService.js` |
-| **Regla de Negocio** | `RN-11`: Validación de horario real de atención (L-V y Sábados) | **100%** | `src/constants/enums.js` y `visitaService.js` |
-| **No Funcional** | `RNF-03`: Prohibido borrar visitas (`CANCELADA` + `HistorialVisitas`) | **100%** | `src/repositories/visitaRepository.js` y `historialVisitaRepository.js` |
-| **Entorno / IDE** | Ejecución directa en **IntelliJ IDEA** (Botón Run ▶) y consola | **100%** | `src/IniciarServidor.java` y `.idea/runConfigurations/` |
+| # | Punto Auditado | Estado | Implementación Verificada |
+| :---: | :--- | :---: | :--- |
+| **1** | Reprogramar visita (`PATCH /visitas/{id}/reprogramar`) | ✅ Cumplido | `VisitasController.reprogramarVisita` y `VisitaServiceImpl.reprogramarVisita` |
+| **2** | Historial de una visita (`GET /visitas/{id}/historial`) | ✅ Cumplido | `VisitasController.consultarHistorial` (404 si no existe, 403 si no es Admin) |
+| **3** | Visitas por cliente o por propiedad (`GET /visitas?cliente=ID&propiedad=ID`) | ✅ Cumplido | `VisitaServiceImpl.listarPorClienteOPropiedad` (incluye canceladas) |
+| **4** | Campo `descripcion` (opcional) en `Propiedad` | ✅ Cumplido | `Propiedad.java`, `admin.html`, `asesor.html`, `panel.js` |
+| **5** | Pendientes filtrados por fecha o por asesor (`GET /visitas/pendientes`) | ✅ Cumplido | `VisitaServiceImpl.listarPendientes` (Asesor ignora parámetro ajeno por RN-07) |
+| **6** | Fecha y hora completas (`YYYY-MM-DD HH:MM`) en `fechaAnterior` y `fechaNueva` | ✅ Cumplido | `VisitaServiceImpl.formatearFechaHora` y tabla de Auditoría en `admin.html` |
+| **7** | Cancelación en cascada solo de visitas futuras con motivos del PDF | ✅ Cumplido | `VisitaServiceImpl.cancelarVisitasPorPropiedad` (`inicioVisita.isAfter(ahora)`) |
+| **8** | Sesión en servidor (`httpOnly` cookie), eliminando header `x-usuario-id` | ✅ Cumplido | `AuthInterceptor.java`, `AuthController.java`, `panel.js` |
+| **9** | Contraseñas cifradas con BCrypt | ✅ Cumplido | `BCryptPasswordEncoder` en `WebConfig.java` y `DataInitializer.java` |
+| **10** | `/api/clientes` protegido con autenticación obligatoria (`RN-09`) | ✅ Cumplido | `AuthInterceptor` protege `/api/clientes` y `/clientes` |
+| **11** | Prevención de XSS en el panel web | ✅ Cumplido | Función `escapeHtml()` aplicada en `panel.js` |
+| **12** | Validación de quién atiende la visita (`validarAsesor` con rol `ASESOR`) | ✅ Cumplido | `VisitaServiceImpl.validarAsesor` usa `UsuarioRepository` |
+| **13** | Validación completa de `Propiedad` (`TipoPropiedad`, `Modalidad`, `EstadoPropiedad`) | ✅ Cumplido | `PropiedadServiceImpl.validarDatos` |
+| **14** | Auditoría, avisos y login respetan capas (`Controller -> Service -> Repository`) | ✅ Cumplido | `AuthController/Service`, `AuditoriaController/Service`, `AvisoController/Service` |
+| **15** | Uso real de las `Entities` sin exponer contraseñas | ✅ Cumplido | Entidades JPA en `com.inmobiliaria.model` |
+| **16** | División de `agendarVisita` en los 5 métodos privados del diagrama | ✅ Cumplido | `VisitaServiceImpl.java` |
+| **17** | Códigos HTTP (`400`, `401`, `403`, `404`) y formato `{ error, mensaje }` | ✅ Cumplido | `AppException.java` y `GlobalExceptionHandler.java` |
+| **18** | Inyección de dependencias por constructor e interfaces `Service` | ✅ Cumplido | Todas las clases `@RestController` y `@Service` |
+| **19-31** | Migración a Spring Boot + JPA, transacciones `@Transactional`, limpieza de repo y horarios libres | ✅ Cumplido | Proyecto Maven Spring Boot completo y limpio |
