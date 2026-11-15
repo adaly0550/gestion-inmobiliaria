@@ -1,54 +1,35 @@
 // src/repositories/clienteRepository.js
 import { conectarDB } from '../config/database.js';
 
-export const obtenerTodosLosClientes = async () => {
-  const db = await conectarDB();
-  return await db.all('SELECT * FROM Clientes ORDER BY id DESC');
-};
-
-export const obtenerClientePorId = async (id) => {
-  const db = await conectarDB();
-  const cliente = await db.get('SELECT * FROM Clientes WHERE id = ?', [Number(id)]);
-  return cliente || null;
-};
-
-export const obtenerClientePorIdentificacion = async (identificacion) => {
-  const db = await conectarDB();
-  const cliente = await db.get('SELECT * FROM Clientes WHERE identificacion = ?', [identificacion]);
-  return cliente || null;
-};
-
-export const crearCliente = async (datos) => {
-  const db = await conectarDB();
-  const { identificacion, nombre, apellido, nombres, telefono, correo } = datos;
-
-  const nombreFinal = nombre || nombres || '';
-  const apellidoFinal = apellido || '';
-  const correoFinal = correo || null;
-
-  const resultado = await db.run(
-    'INSERT INTO Clientes (identificacion, nombre, apellido, telefono, correo) VALUES (?, ?, ?, ?, ?)',
-    [identificacion, nombreFinal, apellidoFinal, telefono, correoFinal]
-  );
-
-  return await obtenerClientePorId(resultado.lastID);
-};
-
 class ClienteRepository {
   async findAll() {
-    return await obtenerTodosLosClientes();
+    const db = await conectarDB();
+    return await db.all('SELECT * FROM Clientes ORDER BY id DESC');
   }
 
   async findById(id) {
-    return await obtenerClientePorId(id);
+    const db = await conectarDB();
+    return (await db.get('SELECT * FROM Clientes WHERE id = ?', [Number(id)])) || null;
   }
 
   async findByIdentificacion(identificacion) {
-    return await obtenerClientePorIdentificacion(identificacion);
+    const db = await conectarDB();
+    return (await db.get('SELECT * FROM Clientes WHERE identificacion = ?', [identificacion])) || null;
   }
 
   async save(datos) {
-    return await crearCliente(datos);
+    const db = await conectarDB();
+    const { identificacion, nombre, apellido, nombres, telefono, correo } = datos;
+    const nombreFinal = nombre || nombres || '';
+    const apellidoFinal = apellido || '';
+    const correoFinal = correo || null;
+
+    const resultado = await db.run(
+      'INSERT INTO Clientes (identificacion, nombre, apellido, telefono, correo) VALUES (?, ?, ?, ?, ?)',
+      [identificacion, nombreFinal, apellidoFinal, telefono, correoFinal]
+    );
+
+    return await this.findById(resultado.lastID);
   }
 }
 

@@ -32,18 +32,8 @@ export const crearCliente = async (req, res) => {
   }
 };
 
-// Aliases para máxima compatibilidad con cualquier estilo
-export const listar = obtenerClientes;
-export const obtenerPorId = obtenerClientePorId;
-export const registrar = crearCliente;
-
-class ClienteController {
-  obtenerClientes = obtenerClientes;
-  obtenerClientePorId = obtenerClientePorId;
-  crearCliente = crearCliente;
-  listar = obtenerClientes;
-  obtenerPorId = obtenerClientePorId;
-  registrar = crearCliente;
-}
-
-export default new ClienteController();
+export default {
+  obtenerClientes,
+  obtenerClientePorId,
+  crearCliente
+};
