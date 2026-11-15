@@ -78,6 +78,7 @@ public class VisitaServiceImpl implements VisitaService {
         LocalTime horaFin = calcularHoraFin(horaInicio);
 
         validarHorarioAtencion(fecha, horaInicio, horaFin);
+        validarSinDuplicadoClientePropiedad(cliente.getId(), propiedad.getId(), null);
         validarCruceHorario(asesorAsignado.getId(), cliente.getId(), propiedad.getId(), fecha, horaInicio, horaFin, null);
 
         Visita nuevaVisita = new Visita(
@@ -165,10 +166,18 @@ public class VisitaServiceImpl implements VisitaService {
             throw new AppException("RN-07: Un asesor solo puede reprogramar sus propias visitas.", 403);
         }
 
-        // 4. La propiedad debe seguir DISPONIBLE (RN-01)
+        // 4. Evitar reprogramar hacia la misma fecha y hora actual (evita duplicados en historial/avisos)
+        if (Objects.equals(visita.getFecha(), nuevaFecha) && Objects.equals(visita.getHoraInicio(), nuevaHoraInicio)) {
+            throw new AppException("RN-04 / RN-08: La visita ya está programada para el " + formatearFechaHora(nuevaFecha, nuevaHoraInicio) + ". Debe elegir una fecha u hora diferente.", 400);
+        }
+
+        // 5. La propiedad debe seguir DISPONIBLE (RN-01)
         validarDisponibilidad(visita.getIdPropiedad());
 
-        // 5. Recalcular horaFin = horaInicio + 60 y validar horario de atención
+        // 6. Evitar duplicados de visita pendiente para el mismo cliente y propiedad
+        validarSinDuplicadoClientePropiedad(visita.getIdCliente(), visita.getIdPropiedad(), visita.getId());
+
+        // 7. Recalcular horaFin = horaInicio + 60 y validar horario de atención
         LocalTime nuevaHoraFin = calcularHoraFin(nuevaHoraInicio);
         validarHorarioAtencion(nuevaFecha, nuevaHoraInicio, nuevaHoraFin);
 
@@ -314,6 +323,14 @@ public class VisitaServiceImpl implements VisitaService {
             return List.of();
         }
 
+        // RN-01: Si la propiedad seleccionada está RESERVADA, VENDIDA o ALQUILADA, no tiene horarios disponibles
+        if (idPropiedad != null) {
+            Propiedad prop = propiedadRepository.findById(idPropiedad).orElse(null);
+            if (prop == null || prop.getEstado() != EstadoPropiedad.DISPONIBLE) {
+                return List.of();
+            }
+        }
+
         Long asesorIdEfectivo = (usuarioSesion.getRol() == Rol.ASESOR)
                 ? usuarioSesion.getId()
                 : (idAsesor != null ? idAsesor : usuarioSesion.getId());
@@ -359,7 +376,7 @@ public class VisitaServiceImpl implements VisitaService {
                 .orElseThrow(() -> new AppException("La propiedad no existe.", 404));
 
         if (propiedad.getEstado() != EstadoPropiedad.DISPONIBLE) {
-            throw new AppException("RN-01: Solo una propiedad disponible puede recibir visitas.", 400);
+            throw new AppException("RN-01: Solo una propiedad disponible puede recibir visitas (estado actual: " + propiedad.getEstado() + ").", 400);
         }
         return propiedad;
     }
@@ -390,6 +407,17 @@ public class VisitaServiceImpl implements VisitaService {
         List<Visita> visitasPropiedad = visitaRepository.findByPropiedadIdAndFecha(idPropiedad, fecha);
         if (seCruza(visitasPropiedad, horaInicio, horaFin, idVisitaIgnorada)) {
             throw new AppException("RN-04: La propiedad ya tiene otra visita programada que se cruza en ese horario.", 400);
+        }
+    }
+
+    // Impide crear o mantener visitas PENDIENTES duplicadas para el mismo cliente sobre la misma propiedad
+    private void validarSinDuplicadoClientePropiedad(Long idCliente, Long idPropiedad, Long idVisitaIgnorada) {
+        List<Visita> pendientesPropiedad = visitaRepository.findByPropiedadIdAndEstado(idPropiedad, EstadoVisita.PENDIENTE);
+        boolean yaExiste = pendientesPropiedad.stream()
+                .filter(v -> !Objects.equals(v.getId(), idVisitaIgnorada))
+                .anyMatch(v -> Objects.equals(v.getIdCliente(), idCliente));
+        if (yaExiste) {
+            throw new AppException("RN-04: El cliente seleccionado ya tiene una visita PENDIENTE activa para esta propiedad. Use la opción Reprogramar en lugar de duplicar la cita.", 400);
         }
     }
 

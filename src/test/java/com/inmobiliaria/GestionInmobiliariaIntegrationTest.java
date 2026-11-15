@@ -112,7 +112,7 @@ class GestionInmobiliariaIntegrationTest {
                                 "descripcion", "Suite ejecutiva piso 10 con parqueadero"
                         ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.codigoInterno").value("P-03"))
+                .andExpect(jsonPath("$.codigoInterno").value("P-11"))
                 .andExpect(jsonPath("$.descripcion").value("Suite ejecutiva piso 10 con parqueadero"))
                 .andExpect(jsonPath("$.estado").value("DISPONIBLE"));
     }
@@ -218,6 +218,18 @@ class GestionInmobiliariaIntegrationTest {
         mockMvc.perform(get("/api/avisos").session(asesorSession))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].mensaje").exists());
+
+        // Evitar duplicados: el mismo cliente (#1) no puede crear otra visita PENDIENTE duplicada para la misma propiedad (#1)
+        mockMvc.perform(post("/api/visitas")
+                        .session(asesorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "idCliente", 1,
+                                "idPropiedad", 1,
+                                "fecha", proximoDiaHabil(6).toString(),
+                                "horaInicio", "10:00"
+                        ))))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -299,6 +311,17 @@ class GestionInmobiliariaIntegrationTest {
                 .andExpect(jsonPath("$.fecha").value(nuevaFecha))
                 .andExpect(jsonPath("$.horaInicio").value("15:00"))
                 .andExpect(jsonPath("$.horaFin").value("16:00"));
+
+        // Evitar duplicados al reprogramar: intentar reprogramar hacia la misma fecha y hora actual debe fallar con 400
+        mockMvc.perform(patch("/api/visitas/1/reprogramar")
+                        .session(carlosSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "fecha", nuevaFecha,
+                                "horaInicio", "15:00",
+                                "motivo", "Envío duplicado al mismo horario"
+                        ))))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -356,13 +379,39 @@ class GestionInmobiliariaIntegrationTest {
     void test18_cambioEstadoPropiedadCancelaEnCascadaSoloVisitasFuturas() throws Exception {
         MockHttpSession adminSession = crearSesion("admin");
 
-        // Cambiar propiedad #3 (P-03) a RESERVADA
+        // Cambiar propiedad #3 (P-03, modalidad VENTA) a RESERVADA
         mockMvc.perform(patch("/api/propiedades/3/estado")
                         .session(adminSession)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("estado", "RESERVADA"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("RESERVADA"));
+
+        // Regla estricta: filtrar por ?estado=RESERVADA devuelve únicamente propiedades reservadas
+        mockMvc.perform(get("/api/propiedades?estado=RESERVADA").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].estado").value("RESERVADA"));
+
+        // Regla estricta: no permitir volver a marcar RESERVADA si ya está RESERVADA
+        mockMvc.perform(patch("/api/propiedades/3/estado")
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("estado", "RESERVADA"))))
+                .andExpect(status().isBadRequest());
+
+        // Regla estricta: propiedad en modalidad VENTA (#3) no puede pasar a ALQUILADA
+        mockMvc.perform(patch("/api/propiedades/3/estado")
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("estado", "ALQUILADA"))))
+                .andExpect(status().isBadRequest());
+
+        // Regla estricta: propiedad en modalidad ALQUILER (#2) no puede pasar a VENDIDA
+        mockMvc.perform(patch("/api/propiedades/2/estado")
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("estado", "VENDIDA"))))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -382,6 +431,12 @@ class GestionInmobiliariaIntegrationTest {
                         ))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").exists());
+
+        // Regla estricta RN-01: horarios libres para propiedad RESERVADA (#3) devuelve lista vacía
+        mockMvc.perform(get("/api/visitas/horarios-libres?fecha=" + fecha + "&propiedad=3")
+                        .session(carlosSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test

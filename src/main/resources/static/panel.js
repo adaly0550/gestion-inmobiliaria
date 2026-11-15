@@ -14,11 +14,13 @@ const paginas = {
 };
 
 let cachePropiedades = [];
+let cacheTodasPropiedades = [];
 let cacheClientes = [];
 let cacheAsesores = [];
 let cacheVisitas = [];
 let cacheAuditoria = [];
 let cacheAvisos = [];
+let ultimaVisitaReprogramadaId = null;
 
 // Punto 11: Función para escapar cualquier dato antes de interpolarlo en HTML (prevención de XSS)
 function escapeHtml(valor) {
@@ -210,17 +212,54 @@ async function cargarAsesores() {
   }
 }
 
-// ================= PROPIEDADES (Puntos 4, 13, 25) =================
+// ================= PROPIEDADES (Puntos 4, 13, 25 y Reglas estrictas RN-01 / RN-02 / RN-05) =================
+window.sincronizarEstadosPorModalidad = () => {
+  const selectModalidad = document.getElementById('prop-modalidad');
+  const selectEstado = document.getElementById('prop-estado');
+  if (!selectModalidad || !selectEstado) return;
+
+  const modalidad = selectModalidad.value;
+  const previo = selectEstado.value || 'DISPONIBLE';
+  const estadoFinal = modalidad === 'ALQUILER' ? 'ALQUILADA' : 'VENDIDA';
+
+  selectEstado.innerHTML = `
+    <option value="DISPONIBLE">DISPONIBLE</option>
+    <option value="RESERVADA">RESERVADA (En Reservación)</option>
+    <option value="${estadoFinal}">${estadoFinal}</option>
+  `;
+
+  if (['DISPONIBLE', 'RESERVADA', estadoFinal].includes(previo)) {
+    selectEstado.value = previo;
+  } else {
+    selectEstado.value = 'DISPONIBLE';
+  }
+};
+
+window.filtrarPropiedades = () => {
+  paginas.propiedades = 1;
+  cargarPropiedades();
+};
+
 async function cargarPropiedades() {
   try {
-    const endpoint =
-      usuarioSesion.rol === 'ADMINISTRADOR'
-        ? '/api/propiedades'
-        : '/api/propiedades?estado=DISPONIBLE';
-    cachePropiedades = await apiFetch(endpoint);
+    const filtroEl = document.getElementById('filtro-estado-propiedad');
+    const filtroEstado = filtroEl
+      ? filtroEl.value
+      : (usuarioSesion.rol === 'ADMINISTRADOR' ? 'TODAS' : 'DISPONIBLE');
+
+    // Siempre cargar todas para poblar selectores de propiedades disponibles (RN-01) y código correlativo
+    cacheTodasPropiedades = await apiFetch('/api/propiedades');
+
+    if (filtroEstado && filtroEstado !== 'TODAS') {
+      cachePropiedades = await apiFetch(`/api/propiedades?estado=${encodeURIComponent(filtroEstado)}`);
+    } else {
+      cachePropiedades = cacheTodasPropiedades;
+    }
+
     renderPropiedades();
     actualizarSelectPropiedades();
     actualizarProximoCodigoPropiedad();
+    sincronizarEstadosPorModalidad();
   } catch (err) {
     mostrarAlerta(err.message, 'error');
   }
@@ -230,7 +269,7 @@ function actualizarProximoCodigoPropiedad() {
   const inputCodigo = document.getElementById('prop-codigo');
   if (!inputCodigo) return;
   let maxNum = 0;
-  cachePropiedades.forEach((p) => {
+  cacheTodasPropiedades.forEach((p) => {
     const m = /^P-(\d+)$/i.exec(p.codigoInterno || '');
     if (m) {
       const n = parseInt(m[1], 10);
@@ -250,20 +289,38 @@ function renderPropiedades() {
   const totalCols = esAdmin ? 8 : 7;
 
   if (items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align:center;">No hay propiedades registradas.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align:center;">No hay propiedades registradas para el filtro actual.</td></tr>`;
     return;
   }
 
   items.forEach((p) => {
     const estadoSafe = escapeHtml(p.estado);
-    const accionHtml = esAdmin
-      ? `<select onchange="cambiarEstadoPropiedad(${Number(p.id)}, this.value)" style="width:auto; padding:4px;">
-           <option value="DISPONIBLE" ${p.estado === 'DISPONIBLE' ? 'selected' : ''}>DISPONIBLE</option>
-           <option value="RESERVADA" ${p.estado === 'RESERVADA' ? 'selected' : ''}>RESERVADA</option>
-           <option value="VENDIDA" ${p.estado === 'VENDIDA' ? 'selected' : ''}>VENDIDA</option>
-           <option value="ALQUILADA" ${p.estado === 'ALQUILADA' ? 'selected' : ''}>ALQUILADA</option>
-         </select>`
-      : '-';
+    const estadoCierre = p.modalidad === 'ALQUILER' ? 'ALQUILADA' : 'VENDIDA';
+    const yaCerrada = p.estado === 'VENDIDA' || p.estado === 'ALQUILADA';
+
+    let accionHtml = '-';
+    if (esAdmin) {
+      const botonRapido = p.estado === 'DISPONIBLE'
+        ? `<button type="button" class="btn btn-primary btn-small" style="background-color:#d97706;" onclick="cambiarEstadoPropiedad(${Number(p.id)}, 'RESERVADA')">Reservar</button>`
+        : (p.estado === 'RESERVADA'
+            ? `<button type="button" class="btn btn-secondary btn-small" onclick="cambiarEstadoPropiedad(${Number(p.id)}, 'DISPONIBLE')">Liberar</button>`
+            : '');
+
+      accionHtml = `
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <select onchange="cambiarEstadoPropiedad(${Number(p.id)}, this.value)" style="width:auto; padding:4px;">
+            <option value="DISPONIBLE" ${p.estado === 'DISPONIBLE' ? 'selected' : ''}>DISPONIBLE</option>
+            <option value="RESERVADA" ${p.estado === 'RESERVADA' ? 'selected' : ''} ${yaCerrada ? 'disabled title="Primero habilite como DISPONIBLE"' : ''}>RESERVADA</option>
+            <option value="${estadoCierre}" ${p.estado === estadoCierre ? 'selected' : ''}>${estadoCierre}</option>
+          </select>
+          ${botonRapido}
+        </div>
+      `;
+    }
+
+    const etiquetaEstado = (!esAdmin && p.estado !== 'DISPONIBLE')
+      ? `<span class="estado estado-${estadoSafe}">${estadoSafe} (Sin visitas - RN-01)</span>`
+      : `<span class="estado estado-${estadoSafe}">${estadoSafe}</span>`;
 
     const fila = document.createElement('tr');
     fila.innerHTML = `
@@ -273,7 +330,7 @@ function renderPropiedades() {
       <td>${escapeHtml(p.tipo)}</td>
       <td>${escapeHtml(p.modalidad)}</td>
       <td>${escapeHtml(p.descripcion || '-')}</td>
-      <td><span class="estado estado-${estadoSafe}">${estadoSafe}</span></td>
+      <td>${etiquetaEstado}</td>
       ${esAdmin ? `<td>${accionHtml}</td>` : ''}
     `;
     tbody.appendChild(fila);
@@ -283,15 +340,18 @@ function renderPropiedades() {
 window.registrarPropiedad = async (e) => {
   e.preventDefault();
   try {
+    const estadoSelect = document.getElementById('prop-estado');
     const body = {
       direccion: document.getElementById('prop-direccion').value.trim(),
       tipo: document.getElementById('prop-tipo').value.trim(),
       modalidad: document.getElementById('prop-modalidad').value,
+      estado: estadoSelect ? estadoSelect.value : 'DISPONIBLE',
       descripcion: document.getElementById('prop-descripcion')?.value.trim() || null
     };
     const creada = await apiFetch('/api/propiedades', { method: 'POST', body: JSON.stringify(body) });
     e.target.reset();
-    mostrarAlerta(`Propiedad registrada correctamente con código automático ${creada.codigoInterno}.`);
+    sincronizarEstadosPorModalidad();
+    mostrarAlerta(`Propiedad registrada correctamente con código automático ${creada.codigoInterno} en estado ${creada.estado}.`);
     await cargarPropiedades();
   } catch (err) {
     mostrarAlerta(err.message, 'error');
@@ -304,7 +364,10 @@ window.cambiarEstadoPropiedad = async (id, nuevoEstado) => {
       method: 'PATCH',
       body: JSON.stringify({ estado: nuevoEstado })
     });
-    mostrarAlerta(`Estado actualizado a ${nuevoEstado}. Si tenía visitas futuras pendientes, fueron canceladas automáticamente (RN-02).`);
+    const notaRn = nuevoEstado === 'DISPONIBLE'
+      ? 'La propiedad ahora admite el agendamiento de visitas (RN-01).'
+      : 'Las visitas futuras pendientes fueron canceladas automáticamente con aviso al asesor y registro en el historial (RN-02).';
+    mostrarAlerta(`Estado actualizado a ${nuevoEstado}. ${notaRn}`);
     await cargarTodo();
   } catch (err) {
     mostrarAlerta(err.message, 'error');
@@ -315,7 +378,7 @@ window.cambiarEstadoPropiedad = async (id, nuevoEstado) => {
 function actualizarSelectPropiedades() {
   const select = document.getElementById('visita-propiedad');
   if (select) {
-    const disponibles = cachePropiedades.filter((p) => p.estado === 'DISPONIBLE');
+    const disponibles = cacheTodasPropiedades.filter((p) => p.estado === 'DISPONIBLE');
     select.innerHTML = '<option value="">-- Seleccione propiedad disponible --</option>';
     disponibles.forEach((p) => {
       const opt = document.createElement('option');
@@ -330,7 +393,7 @@ function actualizarSelectPropiedades() {
   if (selectFiltroProp) {
     const prev = selectFiltroProp.value;
     selectFiltroProp.innerHTML = '<option value="">-- Todas las propiedades --</option>';
-    cachePropiedades.forEach((p) => {
+    cacheTodasPropiedades.forEach((p) => {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = `${p.codigoInterno} - ${p.direccion} [${p.estado}]`;
@@ -558,6 +621,11 @@ function renderVisitas() {
       acciones.push(
         `<button class="btn btn-danger btn-small" onclick="cancelarVisita(${idSafe})">Cancelar</button>`
       );
+      if (esAdmin && v.idPropiedad) {
+        acciones.push(
+          `<button class="btn btn-primary btn-small" style="background-color:#d97706;" onclick="cambiarEstadoPropiedad(${Number(v.idPropiedad)}, 'RESERVADA')" title="Marcar propiedad como RESERVADA y cancelar visitas futuras pendientes (RN-02)">Reservar Propiedad</button>`
+        );
+      }
     }
 
     if (esAdmin) {
@@ -572,6 +640,13 @@ function renderVisitas() {
         : '<span style="color:#888; font-size:12px;">Sin acciones</span>';
 
     const fila = document.createElement('tr');
+    if (ultimaVisitaReprogramadaId && Number(ultimaVisitaReprogramadaId) === idSafe) {
+      fila.style.backgroundColor = '#d1fae5';
+      fila.style.transition = 'background-color 1.2s ease';
+      setTimeout(() => {
+        fila.style.backgroundColor = '';
+      }, 4000);
+    }
     fila.innerHTML = `
       <td>${idSafe}</td>
       <td>${escapeHtml(v.clienteNombre || 'Cliente #' + v.idCliente)}</td>
@@ -588,6 +663,12 @@ function renderVisitas() {
 
 window.agendarVisita = async (e) => {
   e.preventDefault();
+  const btnSubmit = e.target.querySelector('button[type="submit"]');
+  const textoOriginal = btnSubmit ? btnSubmit.textContent : 'Agendar Visita';
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Agendando...';
+  }
   try {
     const body = {
       idCliente: Number(document.getElementById('visita-cliente').value),
@@ -608,6 +689,11 @@ window.agendarVisita = async (e) => {
     await cargarTodo();
   } catch (err) {
     mostrarAlerta(err.message, 'error');
+  } finally {
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = textoOriginal;
+    }
   }
 };
 
@@ -630,12 +716,8 @@ function actualizarSelectReprogramar() {
     select.value = valorPrevio;
   } else if (pendientes.length > 0) {
     select.value = String(pendientes[0].id);
-    seleccionarVisitaParaReprogramar(pendientes[0].id);
   } else {
-    const info = document.getElementById('rep-info-actual');
-    if (info) {
-      info.textContent = 'No tienes visitas en estado PENDIENTE actualmente. Agenda una nueva visita arriba para poder reprogramarla.';
-    }
+    cerrarFormularioReprogramar();
   }
 }
 
@@ -660,11 +742,14 @@ window.seleccionarVisitaParaReprogramar = async (idVisita) => {
   await actualizarHorariosReprogramacion();
 };
 
-// Punto 1 / HU-06 / RF-08: Abrir formulario visual de reprogramación con sugerencia de horarios libres
+// Punto 1 / HU-06 / RF-08: Abrir formulario visual de reprogramación al hacer clic en "Reprogramar"
 window.reprogramarVisita = async (idVisita, fechaActual, horaActual) => {
   const card = document.getElementById('card-reprogramar');
   const select = document.getElementById('rep-id-visita');
 
+  if (card) {
+    card.style.display = 'block';
+  }
   if (select) {
     select.value = String(idVisita);
   }
@@ -681,8 +766,14 @@ window.reprogramarVisita = async (idVisita, fechaActual, horaActual) => {
 };
 
 window.cerrarFormularioReprogramar = () => {
+  const card = document.getElementById('card-reprogramar');
+  if (card) {
+    card.style.display = 'none';
+  }
   const motivoInput = document.getElementById('rep-motivo');
   if (motivoInput) motivoInput.value = '';
+  const box = document.getElementById('rep-horarios-libres-box');
+  if (box) box.textContent = '';
 };
 
 window.actualizarHorariosReprogramacion = async () => {
@@ -699,15 +790,21 @@ window.actualizarHorariosReprogramacion = async () => {
     const cli = document.getElementById('rep-id-cliente')?.value;
     const ase = document.getElementById('rep-id-asesor')?.value;
     const idVisita = document.getElementById('rep-id-visita')?.value;
+    const visitaActual = cacheVisitas.find((v) => Number(v.id) === Number(idVisita));
 
     if (prop) params.set('propiedad', prop);
     if (cli) params.set('cliente', cli);
     if (ase) params.set('asesor', ase);
     if (idVisita) params.set('visitaIgnorada', idVisita);
 
-    const libres = await apiFetch(`/api/visitas/horarios-libres?${params.toString()}`);
+    const libresRaw = await apiFetch(`/api/visitas/horarios-libres?${params.toString()}`);
+    // Excluir el horario exacto actual en la misma fecha para evitar que el usuario elija el mismo horario sin cambio
+    const libres = libresRaw.filter(
+      (h) => !(visitaActual && visitaActual.fecha === fecha && visitaActual.horaInicio === h)
+    );
+
     if (libres.length === 0) {
-      box.innerHTML = '<strong>Horarios disponibles (HU-05 / RN-04):</strong> No hay horarios libres en esta fecha.';
+      box.innerHTML = '<strong>Horarios disponibles (HU-05 / RN-04):</strong> No hay horarios libres distintos al actual en esta fecha.';
     } else {
       box.innerHTML =
         '<strong>Horarios libres para reprogramar (clic para elegir):</strong> ' +
@@ -735,20 +832,46 @@ window.guardarReprogramacionFormulario = async (e) => {
     return;
   }
 
+  const visitaActual = cacheVisitas.find((v) => Number(v.id) === Number(idVisita));
+  const horaLimpia = nuevaHora.length > 5 ? nuevaHora.substring(0, 5) : nuevaHora;
+  if (visitaActual && visitaActual.fecha === nuevaFecha && visitaActual.horaInicio === horaLimpia) {
+    mostrarAlerta('RN-04: La nueva fecha y hora deben ser diferentes al horario actual de la visita. Elige otro horario sugerido.', 'error');
+    return;
+  }
+
+  const btnSubmit = document.getElementById('btn-submit-reprogramar');
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Guardando reprogramación...';
+  }
+
   try {
     await apiFetch(`/api/visitas/${idVisita}/reprogramar`, {
       method: 'PATCH',
       body: JSON.stringify({
         fecha: nuevaFecha,
-        horaInicio: nuevaHora,
+        horaInicio: horaLimpia,
         motivo
       })
     });
+    ultimaVisitaReprogramadaId = Number(idVisita);
     cerrarFormularioReprogramar();
-    mostrarAlerta('Visita reprogramada exitosamente, historial registrado (RF-11) y aviso enviado (RN-10).');
+    mostrarAlerta(`✅ Visita #${idVisita} reprogramada con éxito para el ${nuevaFecha} a las ${horaLimpia}. Historial (RF-11) y aviso (RN-10) generados.`);
     await cargarTodo();
+    const tablaVisitas = document.getElementById('tabla-visitas');
+    if (tablaVisitas) {
+      tablaVisitas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(() => {
+      ultimaVisitaReprogramadaId = null;
+    }, 4500);
   } catch (err) {
     mostrarAlerta(err.message, 'error');
+  } finally {
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = 'Guardar Reprogramación';
+    }
   }
 };
 

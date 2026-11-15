@@ -1,6 +1,7 @@
 package com.inmobiliaria.service.impl;
 
 import com.inmobiliaria.constants.EstadoPropiedad;
+import com.inmobiliaria.constants.Modalidad;
 import com.inmobiliaria.constants.Rol;
 import com.inmobiliaria.constants.TipoPropiedad;
 import com.inmobiliaria.exception.AppException;
@@ -55,6 +56,8 @@ public class PropiedadServiceImpl implements PropiedadService {
             propiedad.setEstado(EstadoPropiedad.DISPONIBLE);
         }
 
+        validarReglasEstado(propiedad.getModalidad(), null, propiedad.getEstado(), false);
+
         return propiedadRepository.save(propiedad);
     }
 
@@ -91,15 +94,22 @@ public class PropiedadServiceImpl implements PropiedadService {
             throw new AppException("Debe indicar el nuevo estado de la propiedad.", 400);
         }
 
+        String estadoNorm = nuevoEstadoStr.trim().toUpperCase();
+        if ("RESERVACION".equals(estadoNorm) || "EN_RESERVACION".equals(estadoNorm)) {
+            estadoNorm = EstadoPropiedad.RESERVADA.name();
+        }
+
         EstadoPropiedad nuevoEstado;
         try {
-            nuevoEstado = EstadoPropiedad.valueOf(nuevoEstadoStr.trim().toUpperCase());
+            nuevoEstado = EstadoPropiedad.valueOf(estadoNorm);
         } catch (IllegalArgumentException e) {
             throw new AppException("Estado no válido. Valores permitidos: " + Arrays.toString(EstadoPropiedad.values()), 400);
         }
 
         Propiedad propiedad = propiedadRepository.findById(idPropiedad)
                 .orElseThrow(() -> new AppException("Propiedad no encontrada.", 404));
+
+        validarReglasEstado(propiedad.getModalidad(), propiedad.getEstado(), nuevoEstado, true);
 
         propiedad.setEstado(nuevoEstado);
         Propiedad actualizada = propiedadRepository.save(propiedad);
@@ -147,6 +157,27 @@ public class PropiedadServiceImpl implements PropiedadService {
         }
         // Normalizar capitalización ('Casa' o 'Departamento')
         p.setTipo(tipoTrim.substring(0, 1).toUpperCase() + tipoTrim.substring(1).toLowerCase());
+    }
+
+    // Reglas estrictas de negocio para el estado de reservación y coherencia con modalidad (RN-01, RN-02, RN-05)
+    private void validarReglasEstado(Modalidad modalidad, EstadoPropiedad estadoActual,
+                                     EstadoPropiedad nuevoEstado, boolean esCambioEstado) {
+        if (modalidad == Modalidad.VENTA && nuevoEstado == EstadoPropiedad.ALQUILADA) {
+            throw new AppException("RN-02 / RN-05: Una propiedad en modalidad VENTA no puede pasar a estado ALQUILADA (solo DISPONIBLE, RESERVADA o VENDIDA).", 400);
+        }
+        if (modalidad == Modalidad.ALQUILER && nuevoEstado == EstadoPropiedad.VENDIDA) {
+            throw new AppException("RN-02 / RN-05: Una propiedad en modalidad ALQUILER no puede pasar a estado VENDIDA (solo DISPONIBLE, RESERVADA o ALQUILADA).", 400);
+        }
+
+        if (esCambioEstado && estadoActual != null) {
+            if (estadoActual == nuevoEstado) {
+                throw new AppException("RN-02: La propiedad ya se encuentra en estado " + nuevoEstado + ".", 400);
+            }
+            if (nuevoEstado == EstadoPropiedad.RESERVADA
+                    && (estadoActual == EstadoPropiedad.VENDIDA || estadoActual == EstadoPropiedad.ALQUILADA)) {
+                throw new AppException("RN-02: No se puede poner en reservación (RESERVADA) una propiedad que ya figura como " + estadoActual + ". Primero debe habilitarse como DISPONIBLE.", 400);
+            }
+        }
     }
 
     // Método privado del diagrama de PropiedadServiceImpl (RN-06)

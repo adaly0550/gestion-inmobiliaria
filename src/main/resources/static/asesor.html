@@ -32,8 +32,18 @@
 
     <!-- PESTAÑA 1: PROPIEDADES DISPONIBLES (HU-03 / RF-03 / RN-01) -->
     <section id="tab-propiedades" class="tab-content active">
-      <h3>Propiedades Disponibles para Visitas (HU-03 / RN-01)</h3>
-      <p class="rule-note">Solo las propiedades en estado DISPONIBLE pueden recibir visitas agendadas.</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+        <h3 style="margin:0;">Propiedades para Visitas (HU-03 / RN-01 / RN-02)</h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label for="filtro-estado-propiedad" style="font-size:13px; font-weight:600;">Ver estado:</label>
+          <select id="filtro-estado-propiedad" style="width:auto;" onchange="filtrarPropiedades()">
+            <option value="DISPONIBLE">Solo DISPONIBLES (HU-03)</option>
+            <option value="RESERVADA">Solo RESERVADAS (En Reservación - RN-01)</option>
+            <option value="TODAS">Todas las propiedades</option>
+          </select>
+        </div>
+      </div>
+      <p class="rule-note"><strong>Regla estricta RN-01 y RN-02:</strong> Solo las propiedades en estado <strong>DISPONIBLE</strong> pueden recibir visitas. Las propiedades en estado <strong>RESERVADA</strong> están bloqueadas para agendar o reprogramar citas.</p>
       <div class="table-responsive">
         <table>
           <thead>
@@ -168,14 +178,13 @@
       </div>
       <div id="pag-visitas" class="pagination"></div>
 
-      <!-- FORMULARIO VISUAL DE REPROGRAMACIÓN (HU-06 / RF-08 / RN-08) SIEMPRE VISIBLE -->
-      <div id="card-reprogramar" class="form-card" style="margin-top:20px; border-left: 4px solid #3498db;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-          <h3 id="titulo-form-reprogramar" style="margin:0;">Reprogramar Cita / Visita Pendiente (HU-06 / RF-08 / RN-08)</h3>
+      <!-- FORMULARIO VISUAL DE REPROGRAMACIÓN (HU-06 / RF-08 / RN-08) SE MUESTRA AL PULSAR REPROGRAMAR Y SE OCULTA AL ENVIAR -->
+      <div id="card-reprogramar" class="form-card" style="display:none; margin-top:20px; border-left: 5px solid #2980b9; background-color: #f0f7ff; box-shadow: 0 4px 12px rgba(52,152,219,0.15);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+          <h3 id="titulo-form-reprogramar" style="margin:0; color:#1f618d;">Reprogramar Cita / Visita Pendiente (HU-06 / RF-08 / RN-08)</h3>
+          <button type="button" class="btn btn-secondary btn-small" onclick="cerrarFormularioReprogramar()">✕ Cerrar</button>
         </div>
-        <p id="rep-info-actual" class="rule-note" style="margin-bottom:12px;">
-          Selecciona una de tus visitas pendientes en la lista inferior o haz clic en el botón <strong>"Reprogramar"</strong> de la tabla.
-        </p>
+        <p id="rep-info-actual" class="rule-note" style="margin-bottom:12px; font-weight:600; color:#2c3e50;"></p>
         <form onsubmit="guardarReprogramacionFormulario(event)">
           <input type="hidden" id="rep-id-propiedad">
           <input type="hidden" id="rep-id-cliente">
@@ -201,8 +210,9 @@
             </div>
           </div>
           <div id="rep-horarios-libres-box" class="rule-note" style="margin-top: 8px;"></div>
-          <div style="margin-top: 12px; display:flex; gap:8px;">
-            <button type="submit" class="btn btn-primary">Guardar Reprogramación</button>
+          <div style="margin-top: 14px; display:flex; gap:10px; align-items:center;">
+            <button type="submit" id="btn-submit-reprogramar" class="btn btn-primary">Guardar Reprogramación</button>
+            <button type="button" class="btn btn-secondary" onclick="cerrarFormularioReprogramar()">Cancelar</button>
           </div>
         </form>
       </div>
@@ -228,7 +238,7 @@
     </section>
   </main>
 
-  <script src="panel.js?v=3"></script>
+  <script src="panel.js?v=5"></script>
   <script>
     iniciarPanel('ASESOR');
   </script>

@@ -49,8 +49,12 @@ public class PropiedadesController {
         }
 
         if (dto.get("estado") != null && !String.valueOf(dto.get("estado")).isBlank()) {
+            String estadoRaw = String.valueOf(dto.get("estado")).trim().toUpperCase();
+            if ("RESERVACION".equals(estadoRaw) || "EN_RESERVACION".equals(estadoRaw)) {
+                estadoRaw = EstadoPropiedad.RESERVADA.name();
+            }
             try {
-                nueva.setEstado(EstadoPropiedad.valueOf(String.valueOf(dto.get("estado")).trim().toUpperCase()));
+                nueva.setEstado(EstadoPropiedad.valueOf(estadoRaw));
             } catch (IllegalArgumentException e) {
                 throw new AppException("Estado de propiedad no válido.", 400);
             }
@@ -73,11 +77,26 @@ public class PropiedadesController {
         return ResponseEntity.ok(actualizada);
     }
 
-    // GET /propiedades?estado=DISPONIBLE (HU-03, RF-03, Punto 25) y listado general
+    // GET /propiedades?estado=DISPONIBLE|RESERVADA|VENDIDA|ALQUILADA (HU-03, RF-03, Punto 25) y listado general
     @GetMapping
     public ResponseEntity<List<Propiedad>> listar(@RequestParam(required = false) String estado) {
-        if (estado != null && estado.equalsIgnoreCase(EstadoPropiedad.DISPONIBLE.name())) {
-            return ResponseEntity.ok(propiedadService.listarDisponibles());
+        if (estado != null && !estado.isBlank()) {
+            String estadoNorm = estado.trim().toUpperCase();
+            if ("RESERVACION".equals(estadoNorm) || "EN_RESERVACION".equals(estadoNorm)) {
+                estadoNorm = EstadoPropiedad.RESERVADA.name();
+            }
+            if (estadoNorm.equalsIgnoreCase(EstadoPropiedad.DISPONIBLE.name())) {
+                return ResponseEntity.ok(propiedadService.listarDisponibles());
+            }
+            try {
+                EstadoPropiedad filtroEstado = EstadoPropiedad.valueOf(estadoNorm);
+                List<Propiedad> filtradas = propiedadService.listarTodas().stream()
+                        .filter(p -> p.getEstado() == filtroEstado)
+                        .toList();
+                return ResponseEntity.ok(filtradas);
+            } catch (IllegalArgumentException e) {
+                throw new AppException("Estado de propiedad no válido para filtrar.", 400);
+            }
         }
         return ResponseEntity.ok(propiedadService.listarTodas());
     }

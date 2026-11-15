@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Inicializador de datos semilla con contraseñas cifradas en BCrypt (Punto 9).
@@ -64,44 +67,62 @@ public class DataInitializer implements CommandLineRunner {
             }
         }
 
-        // 2. Sembrar propiedades iniciales con descripción (Punto 4)
-        if (propiedadRepository.count() == 0) {
-            propiedadRepository.save(new Propiedad(
-                    null,
-                    "P-01",
-                    "Av. Amazonas",
-                    "Casa",
-                    Modalidad.VENTA,
-                    "Casa amplia de 3 dormitorios con jardín y garaje en zona comercial.",
-                    EstadoPropiedad.DISPONIBLE
-            ));
-            propiedadRepository.save(new Propiedad(
-                    null,
-                    "P-02",
-                    "Av. Shyris y Portugal",
-                    "Departamento",
-                    Modalidad.ALQUILER,
-                    "Departamento moderno frente al parque La Carolina, 2 habitaciones.",
-                    EstadoPropiedad.DISPONIBLE
-            ));
+        // 2. Sembrar catálogo de 10 propiedades iniciales con sus descripciones completas (Punto 4)
+        List<Propiedad> catalogoInicial = List.of(
+                new Propiedad(null, "P-01", "Av. Amazonas N34-120 y Núñez de Vela", "Casa", Modalidad.VENTA,
+                        "Casa amplia de 3 dormitorios, 2 baños y medio, jardín posterior y garaje doble en zona comercial.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-02", "Av. Shyris N36-45 y Portugal", "Departamento", Modalidad.ALQUILER,
+                        "Departamento moderno frente al parque La Carolina, 2 habitaciones, balcón panorámico y seguridad 24/7.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-03", "Av. 6 de Diciembre N39-88 y Eloy Alfaro", "Departamento", Modalidad.VENTA,
+                        "Suite ejecutiva en piso 8 con acabados de porcelanato, cocina tipo americana, bodega y 1 parqueadero.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-04", "Urb. El Condado, Calle C y Paseo de los Eucaliptos", "Casa", Modalidad.VENTA,
+                        "Residencia familiar de 2 plantas, 4 dormitorios con baño privado, área de BBQ, estudio y seguridad privada.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-05", "Av. González Suárez N27-142 y Orellana", "Departamento", Modalidad.ALQUILER,
+                        "Departamento de lujo de 3 dormitorios con vista al valle, gimnasio comunal, terraza y 2 estacionamientos.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-06", "Valle de Cumbayá, Av. Interoceánica Km 11", "Casa", Modalidad.ALQUILER,
+                        "Casa independiente en conjunto privado con piscina climatizada, 3 habitaciones, pérgola y áreas verdes.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-07", "Av. República del Salvador N35-204 y Moscú", "Departamento", Modalidad.VENTA,
+                        "Departamento contemporáneo de 2 dormitorios en zona financiera, edificio inteligente con coworking y terraza.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-08", "Sector Ponceano Alto, Av. Real Audiencia N62-15", "Casa", Modalidad.VENTA,
+                        "Casa esquinera de 3 pisos, 4 habitaciones, patio amplio, cuarto de máquinas y estacionamiento para 2 vehículos.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-09", "Av. De los Granados E14-90 y El Inca", "Casa", Modalidad.ALQUILER,
+                        "Casa remodelada de 3 dormitorios dentro de urbanización cerrada, cerca de centros educativos y comerciales.", EstadoPropiedad.DISPONIBLE),
+                new Propiedad(null, "P-10", "Av. Mariana de Jesús OE7-40 y Pradera", "Departamento", Modalidad.VENTA,
+                        "Departamento iluminado de 3 habitaciones en 5to piso con ascensor, área de lavado y guardianía permanente.", EstadoPropiedad.RESERVADA)
+        );
+
+        for (Propiedad p : catalogoInicial) {
+            Propiedad existente = propiedadRepository.findByCodigoInterno(p.getCodigoInterno()).orElse(null);
+            if (existente == null) {
+                propiedadRepository.save(p);
+            } else if (existente.getDescripcion() == null || existente.getDescripcion().isBlank()) {
+                existente.setDescripcion(p.getDescripcion());
+                propiedadRepository.save(existente);
+            }
         }
 
-        // 3. Sembrar cliente inicial de prueba
+        // 3. Sembrar clientes iniciales de prueba
         if (clienteRepository.count() == 0) {
-            clienteRepository.save(new Cliente(
-                    null,
-                    "1723456789",
-                    "Grecco",
-                    "Cedeño",
-                    "0991234567",
-                    "grecco@ejemplo.com"
-            ));
+            clienteRepository.save(new Cliente(null, "1723456789", "Grecco", "Cedeño", "0991234567", "grecco@ejemplo.com"));
+            clienteRepository.save(new Cliente(null, "1314567890", "Britany Tahis", "Macias", "0987654321", "britany@ejemplo.com"));
+            clienteRepository.save(new Cliente(null, "1719876543", "Mateo", "Andrade", "0998877665", "mateo.andrade@ejemplo.com"));
         }
 
-        // 4. Asegurar que cada asesor de prueba tenga al menos una visita PENDIENTE futura para probar reprogramación/cancelación
+        // 4. Limpiar cualquier visita PENDIENTE duplicada existente para un mismo (cliente, propiedad)
+        List<Visita> pendientesActuales = visitaRepository.findByEstadoOrderByFechaAscHoraInicioAsc(EstadoVisita.PENDIENTE);
+        Set<String> clavesClientePropiedad = new HashSet<>();
+        for (Visita v : pendientesActuales) {
+            String clave = v.getIdCliente() + "-" + v.getIdPropiedad();
+            if (!clavesClientePropiedad.add(clave)) {
+                v.setEstado(EstadoVisita.CANCELADA);
+                visitaRepository.save(v);
+            }
+        }
+
+        // 5. Asegurar que cada asesor de prueba tenga una visita PENDIENTE futura en propiedades distintas (P-04 y P-05)
         Cliente cliente = clienteRepository.findAll().stream().findFirst().orElse(null);
-        Propiedad prop1 = propiedadRepository.findByCodigoInterno("P-01").orElse(null);
-        Propiedad prop2 = propiedadRepository.findByCodigoInterno("P-02").orElse(null);
+        Propiedad propCarlos = propiedadRepository.findByCodigoInterno("P-04").orElse(null);
+        Propiedad propLaura = propiedadRepository.findByCodigoInterno("P-05").orElse(null);
         Usuario carlos = usuarioRepository.findByUsuario("carlos").orElse(null);
         Usuario laura = usuarioRepository.findByUsuario("laura").orElse(null);
 
@@ -110,13 +131,13 @@ public class DataInitializer implements CommandLineRunner {
             proximoDiaHabil = proximoDiaHabil.plusDays(1);
         }
 
-        if (cliente != null && prop1 != null && carlos != null) {
+        if (cliente != null && propCarlos != null && carlos != null) {
             boolean carlosTienePendiente = visitaRepository.findByEstadoOrderByFechaAscHoraInicioAsc(EstadoVisita.PENDIENTE)
                     .stream().anyMatch(v -> carlos.getId().equals(v.getIdUsuario()));
-            if (!carlosTienePendiente && prop1.getEstado() == EstadoPropiedad.DISPONIBLE) {
+            if (!carlosTienePendiente && propCarlos.getEstado() == EstadoPropiedad.DISPONIBLE) {
                 visitaRepository.save(new Visita(
                         cliente,
-                        prop1,
+                        propCarlos,
                         carlos,
                         proximoDiaHabil,
                         LocalTime.of(10, 0),
@@ -125,13 +146,13 @@ public class DataInitializer implements CommandLineRunner {
                 ));
             }
         }
-        if (cliente != null && prop2 != null && laura != null) {
+        if (cliente != null && propLaura != null && laura != null) {
             boolean lauraTienePendiente = visitaRepository.findByEstadoOrderByFechaAscHoraInicioAsc(EstadoVisita.PENDIENTE)
                     .stream().anyMatch(v -> laura.getId().equals(v.getIdUsuario()));
-            if (!lauraTienePendiente && prop2.getEstado() == EstadoPropiedad.DISPONIBLE) {
+            if (!lauraTienePendiente && propLaura.getEstado() == EstadoPropiedad.DISPONIBLE) {
                 visitaRepository.save(new Visita(
                         cliente,
-                        prop2,
+                        propLaura,
                         laura,
                         proximoDiaHabil,
                         LocalTime.of(11, 0),
