@@ -6,3 +6,7 @@ data/
 node_modules/
 out/
 inmobiliaria.sqlite
+*.docx
+~$*.docx
+*.zip
+

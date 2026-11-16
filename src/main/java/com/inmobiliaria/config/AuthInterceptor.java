@@ -11,9 +11,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
  * Interceptor de autenticación y autorización (Puntos 8 y 10 / RNF-01, RNF-02, RN-09).
- * Lee el ID de usuario desde la sesión HTTP del servidor (cookie httpOnly) y carga
- * el Usuario real desde la base de datos en cada petición.
- */
+ * Lee el ID de usuario desde la sesión HTTP del servidor y carga
+ * el Usuario real desde la base de datos en cada petición.*/
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
 
